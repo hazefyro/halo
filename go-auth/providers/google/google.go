@@ -6,7 +6,7 @@ import (
 
 	goauth "github.com/haze/go-auth"
 	"github.com/haze/go-auth/internal/maputil"
-	oauthsutil "github.com/haze/go-auth/internal/oauthutil"
+	"github.com/haze/go-auth/internal/oauthutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -76,5 +76,5 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 }
 
 func (p *Provider) RefreshToken(refreshToken string) (goauth.Token, error) {
-	return oauthsutil.RefreshToken(p.config, refreshToken)
+	return oauthutil.RefreshToken(p.config, refreshToken)
 }

@@ -7,14 +7,10 @@ import (
 
 	goauth "github.com/haze/go-auth"
 	"github.com/haze/go-auth/internal/maputil"
-	oauthsutil "github.com/haze/go-auth/internal/oauthutil"
+	"github.com/haze/go-auth/internal/oauthutil"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/endpoints"
 )
-
-var endpoint = oauth2.Endpoint{
-	AuthURL:  "https://discord.com/oauth2/authorize",
-	TokenURL: "https://discord.com/api/oauth2/token",
-}
 
 const userInfoURL = "https://discord.com/api/users/@me"
 
@@ -30,7 +26,7 @@ func New(clientID, clientSecret, redirectURL string) *Provider {
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
 			Scopes:       []string{"identify", "email"},
-			Endpoint:     endpoint,
+			Endpoint:     endpoints.Discord,
 		},
 		userInfoURL: userInfoURL,
 	}
@@ -89,5 +85,5 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 }
 
 func (p *Provider) RefreshToken(refreshToken string) (goauth.Token, error) {
-	return oauthsutil.RefreshToken(p.config, refreshToken)
+	return oauthutil.RefreshToken(p.config, refreshToken)
 }

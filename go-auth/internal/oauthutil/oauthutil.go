@@ -1,4 +1,4 @@
-package oauth2util
+package oauthutil
 
 import (
 	"context"
