@@ -63,7 +63,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 	}
 
 	return goauth.User{
-		ID:           maputil.GetString(raw, "sub"),
+		ID:           maputil.GetID(raw, "sub"),
 		Email:        maputil.GetString(raw, "email"),
 		Name:         maputil.GetString(raw, "name"),
 		AvatarURL:    maputil.GetString(raw, "picture"),

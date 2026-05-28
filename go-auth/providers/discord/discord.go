@@ -62,7 +62,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 		return goauth.User{}, err
 	}
 
-	id := maputil.GetString(raw, "id")
+	id := maputil.GetID(raw, "id")
 	avatarHash := maputil.GetString(raw, "avatar")
 	var avatarURL = ""
 	if avatarHash != "" {
