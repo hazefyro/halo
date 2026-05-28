@@ -13,7 +13,7 @@ import (
 func main() {
 	godotenv.Load()
 
-	auth := goauth.New(goauth.WithStateStore(goauth.NewCookieStateStore("dev-secret")))
+	auth := goauth.New(goauth.WithStateStore(goauth.NewInsecureCookieStateStore("dev-secret")))
 	auth.Register(google.New(
 		os.Getenv("GOOGLE_CLIENT_ID"),
 		os.Getenv("GOOGLE_CLIENT_SECRET"),
