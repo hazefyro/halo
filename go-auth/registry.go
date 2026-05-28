@@ -81,6 +81,7 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 			http.Error(w, ErrStateMismatch.Error(), http.StatusUnauthorized)
 			return
 		}
+		r.stateStore.Clear(w)
 
 		user, err := p.CompleteAuth(req)
 		if err != nil {

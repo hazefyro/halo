@@ -12,6 +12,7 @@ import (
 type StateStore interface {
 	Generate(w http.ResponseWriter, r *http.Request) (string, error)
 	Verify(r *http.Request, state string) error
+	Clear(w http.ResponseWriter)
 }
 
 type CookieStateStore struct {
@@ -50,6 +51,16 @@ func (s *CookieStateStore) Verify(r *http.Request, state string) error {
 	}
 
 	return nil
+}
+
+func (s *CookieStateStore) Clear(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "goauth_state",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
 }
 
 func (s *CookieStateStore) sign(state string) string {
