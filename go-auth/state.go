@@ -20,6 +20,9 @@ type CookieStateStore struct {
 }
 
 func NewCookieStateStore(secret string) *CookieStateStore {
+	if secret == "" {
+		panic("goauth: CookieStateStore secret must not be empty")
+	}
 	return &CookieStateStore{secret: []byte(secret)}
 }
 
