@@ -10,6 +10,8 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+const userInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
+
 type Provider struct {
 	config      *oauth2.Config
 	userInfoURL string
@@ -24,7 +26,7 @@ func New(clientID, clientSecret, redirectURL string) *Provider {
 			Scopes:       []string{"openid", "email", "profile"},
 			Endpoint:     google.Endpoint,
 		},
-		userInfoURL: "https://openidconnect.googleapis.com/v1/userinfo",
+		userInfoURL: userInfoURL,
 	}
 }
 
