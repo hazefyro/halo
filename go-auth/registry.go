@@ -50,16 +50,19 @@ func (r *Registry) BeginAuthHandler() http.HandlerFunc {
 		p, err := r.Get(req.PathValue("provider"))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
+			return
 		}
 
 		state, err := r.stateStore.Generate(w, req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		redirectURL, err := p.BeginAuth(state)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		http.Redirect(w, req, redirectURL, http.StatusTemporaryRedirect)
