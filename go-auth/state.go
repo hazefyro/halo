@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 
-	randstate "github.com/haze/go-auth/internal"
+	"github.com/haze/go-auth/internal/randstate"
 )
 
 type StateStore interface {

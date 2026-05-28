@@ -1,11 +1,12 @@
 package google
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
 	goauth "github.com/haze/go-auth"
+	"github.com/haze/go-auth/internal/maputil"
+	"github.com/haze/go-auth/internal/oauth2util"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -61,18 +62,11 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 		return goauth.User{}, err
 	}
 
-	getString := func(key string) string {
-		if v, ok := raw[key].(string); ok {
-			return v
-		}
-		return ""
-	}
-
 	return goauth.User{
-		ID:           getString("sub"),
-		Email:        getString("email"),
-		Name:         getString("name"),
-		AvatarURL:    getString("picture"),
+		ID:           maputil.GetString(raw, "sub"),
+		Email:        maputil.GetString(raw, "email"),
+		Name:         maputil.GetString(raw, "name"),
+		AvatarURL:    maputil.GetString(raw, "picture"),
 		Provider:     p.Name(),
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
@@ -82,15 +76,5 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 }
 
 func (p *Provider) RefreshToken(refreshToken string) (goauth.Token, error) {
-	token, err := p.config.TokenSource(context.Background(), &oauth2.Token{
-		RefreshToken: refreshToken,
-	}).Token()
-	if err != nil {
-		return goauth.Token{}, err
-	}
-	return goauth.Token{
-		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
-		ExpiresAt:    token.Expiry,
-	}, nil
+	return oauth2util.RefreshToken(p.config, refreshToken)
 }
