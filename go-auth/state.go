@@ -17,13 +17,21 @@ type StateStore interface {
 
 type CookieStateStore struct {
 	secret []byte
+	secure bool
 }
 
 func NewCookieStateStore(secret string) *CookieStateStore {
 	if secret == "" {
 		panic("goauth: CookieStateStore secret must not be empty")
 	}
-	return &CookieStateStore{secret: []byte(secret)}
+	return &CookieStateStore{secret: []byte(secret), secure: true}
+}
+
+func NewInsecureCookieStateStore(secret string) *CookieStateStore {
+	if secret == "" {
+		panic("goauth: CookieStateStore secret must not be empty")
+	}
+	return &CookieStateStore{secret: []byte(secret), secure: false}
 }
 
 func (s *CookieStateStore) Generate(w http.ResponseWriter, r *http.Request) (string, error) {
@@ -39,6 +47,7 @@ func (s *CookieStateStore) Generate(w http.ResponseWriter, r *http.Request) (str
 		Value:    signed,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   s.secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 
