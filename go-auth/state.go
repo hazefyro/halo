@@ -18,7 +18,7 @@ type CookieStateStore struct {
 	secret []byte
 }
 
-func NewCookieStateStorage(secret string) *CookieStateStore {
+func NewCookieStateStore(secret string) *CookieStateStore {
 	return &CookieStateStore{secret: []byte(secret)}
 }
 
