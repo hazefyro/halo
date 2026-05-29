@@ -129,9 +129,12 @@ func ProviderFromContext(ctx context.Context) string {
 	return r.User.Provider
 }
 
-func RawDataFromContext(ctx context.Context) RawData {
-	r, _ := authResultFromContext(ctx)
-	return r.RawData
+func RawDataFromContext(ctx context.Context) (RawData, error) {
+	r, ok := authResultFromContext(ctx)
+	if !ok {
+		return nil, errors.New("goauth: no auth result in context")
+	}
+	return r.RawData, nil
 }
 
 func (r *Registry) AuthRequired(next http.Handler) http.Handler {
