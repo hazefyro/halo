@@ -1,7 +1,6 @@
 package discord
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -44,27 +43,14 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 		return goauth.User{}, goauth.ErrMissingCode
 	}
 
-	token, err := p.config.Exchange(r.Context(), code)
+	raw, token, err := oauthutil.FetchUserInfo(r.Context(), p.config, code, p.userInfoURL)
 	if err != nil {
-		return goauth.User{}, err
-	}
-
-	client := p.config.Client(r.Context(), token)
-	res, err := client.Get(p.userInfoURL)
-	if err != nil {
-		return goauth.User{}, err
-	}
-
-	defer res.Body.Close()
-
-	var raw map[string]any
-	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
 		return goauth.User{}, err
 	}
 
 	id := maputil.GetID(raw, "id")
 	avatarHash := maputil.GetString(raw, "avatar")
-	var avatarURL = ""
+	avatarURL := ""
 	if avatarHash != "" {
 		avatarURL = fmt.Sprintf("https://cdn.discordapp.com/avatars/%s/%s.png", id, avatarHash)
 	}
