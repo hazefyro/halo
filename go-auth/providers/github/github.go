@@ -20,6 +20,7 @@ const userEmailURL = "https://api.github.com/user/emails"
 type Option = provideropts.Option
 
 var WithScopes = provideropts.WithScopes
+var WithAdditionalScopes = provideropts.WithAdditionalScopes
 var WithAuthCodeOptions = provideropts.WithAuthCodeOptions
 
 type Provider struct {
@@ -33,6 +34,8 @@ func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 	scopes := []string{"read:user", "user:email"}
 	if len(cfg.Scopes) > 0 {
 		scopes = cfg.Scopes
+	} else {
+		scopes = append(scopes, cfg.AdditionalScopes...)
 	}
 	return &Provider{
 		config: &oauth2.Config{

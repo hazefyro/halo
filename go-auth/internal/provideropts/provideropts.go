@@ -3,14 +3,19 @@ package provideropts
 import "golang.org/x/oauth2"
 
 type Config struct {
-	Scopes          []string
-	AuthCodeOptions []oauth2.AuthCodeOption
+	Scopes           []string
+	AdditionalScopes []string
+	AuthCodeOptions  []oauth2.AuthCodeOption
 }
 
 type Option func(*Config)
 
 func WithScopes(scopes ...string) Option {
 	return func(c *Config) { c.Scopes = scopes }
+}
+
+func WithAdditionalScopes(scopes ...string) Option {
+	return func(c *Config) { c.AdditionalScopes = append(c.AdditionalScopes, scopes...) }
 }
 
 func WithAuthCodeOptions(opts ...oauth2.AuthCodeOption) Option {
