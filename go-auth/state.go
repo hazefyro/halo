@@ -70,6 +70,8 @@ func (s *CookieStateStore) Clear(w http.ResponseWriter, provider string) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   s.secure,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 }
