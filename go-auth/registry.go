@@ -54,55 +54,48 @@ func (r *Registry) Get(name string) (Provider, error) {
 	return p, nil
 }
 
-func (r *Registry) BeginAuthHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		p, err := r.Get(req.PathValue("provider"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		state, err := r.stateStore.Generate(w, req, p.Name())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		redirectURL, err := p.BeginAuth(state)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		http.Redirect(w, req, redirectURL, http.StatusTemporaryRedirect)
+func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerName string) error {
+	p, err := r.Get(providerName)
+	if err != nil {
+		return err
 	}
+
+	state, err := r.stateStore.Generate(w, req, p.Name())
+	if err != nil {
+		return err
+	}
+
+	redirectURL, err := p.BeginAuth(state)
+	if err != nil {
+		return err
+	}
+
+	http.Redirect(w, req, redirectURL, http.StatusTemporaryRedirect)
+	return nil
 }
 
-func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		p, err := r.Get(req.PathValue("provider"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		if err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name()); err != nil {
-			http.Error(w, ErrStateMismatch.Error(), http.StatusUnauthorized)
-			return
-		}
-		r.stateStore.Clear(w, p.Name())
-
-		result, err := p.CompleteAuth(req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		ctx := context.WithValue(req.Context(), contextKey{}, result.User)
-		ctx = context.WithValue(ctx, credentialsContextKey{}, result.Credentials)
-		ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
-		ctx = context.WithValue(ctx, rawDataContextKey{}, result.RawData)
-		next.ServeHTTP(w, req.WithContext(ctx))
+func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string, next http.Handler) error {
+	p, err := r.Get(providerName)
+	if err != nil {
+		return err
 	}
+
+	if err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name()); err != nil {
+		return err
+	}
+	r.stateStore.Clear(w, p.Name())
+
+	result, err := p.CompleteAuth(req)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.WithValue(req.Context(), contextKey{}, result.User)
+	ctx = context.WithValue(ctx, credentialsContextKey{}, result.Credentials)
+	ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
+	ctx = context.WithValue(ctx, rawDataContextKey{}, result.RawData)
+	next.ServeHTTP(w, req.WithContext(ctx))
+	return nil
 }
 
 func StoreUserInContext(ctx context.Context, user User) context.Context {
