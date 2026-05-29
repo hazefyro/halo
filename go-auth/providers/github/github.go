@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"net/http"
 
 	goauth "github.com/haze/go-auth"
@@ -11,6 +12,7 @@ import (
 )
 
 const userInfoURL = "https://api.github.com/user"
+const userEmailURL = "https://api.github.com/user/emails"
 
 type Provider struct {
 	config      *oauth2.Config
@@ -47,9 +49,17 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 		return goauth.User{}, err
 	}
 
+	email := maputil.GetString(raw, "email")
+	if email == "" {
+		email, err = fetchPrimaryEmail(p.config.Client(r.Context(), token))
+		if err != nil {
+			return goauth.User{}, err
+		}
+	}
+
 	return goauth.User{
 		ID:           maputil.GetID(raw, "id"),
-		Email:        maputil.GetString(raw, "email"),
+		Email:        email,
 		Username:     maputil.GetString(raw, "login"),
 		Name:         maputil.GetString(raw, "name"),
 		AvatarURL:    maputil.GetString(raw, "avatar_url"),
@@ -64,4 +74,30 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 
 func (p *Provider) RefreshToken(refreshToken string) (goauth.Token, error) {
 	return oauthutil.RefreshToken(p.config, refreshToken)
+}
+
+func fetchPrimaryEmail(client *http.Client) (string, error) {
+	res, err := client.Get(userEmailURL)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&emails); err != nil {
+		return "", err
+	}
+
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email, nil
+		}
+	}
+
+	return "", nil
 }
