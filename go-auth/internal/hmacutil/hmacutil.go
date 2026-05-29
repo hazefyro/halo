@@ -11,3 +11,8 @@ func Sign(secret []byte, value string) string {
 	mac.Write([]byte(value))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
+func Verify(secret []byte, value, sig string) bool {
+	expected := Sign(secret, value)
+	return hmac.Equal([]byte(expected), []byte(sig))
+}

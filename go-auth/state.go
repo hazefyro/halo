@@ -63,7 +63,7 @@ func (s *CookieStateStore) Verify(r *http.Request, state string) error {
 	if err != nil {
 		return ErrStateMismatch
 	}
-	if cookie.Value != hmacutil.Sign(s.secret, state) {
+	if !hmacutil.Verify(s.secret, state, cookie.Value) {
 		return ErrStateMismatch
 	}
 
