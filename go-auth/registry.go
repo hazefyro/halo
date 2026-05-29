@@ -33,11 +33,12 @@ func New(opts ...Option) (*Registry, error) {
 	return r, nil
 }
 
-func (r *Registry) Register(p Provider) {
+func (r *Registry) Register(p Provider) error {
 	if !validProviderName.MatchString(p.Name()) {
-		panic("goauth: provider name " + p.Name() + " contains invalid characters — use only a-z, A-Z, 0-9, - and _")
+		return errors.New("goauth: provider name " + p.Name() + " contains invalid characters — use only a-z, A-Z, 0-9, - and _")
 	}
 	r.providers[p.Name()] = p
+	return nil
 }
 
 func (r *Registry) Get(name string) (Provider, error) {
