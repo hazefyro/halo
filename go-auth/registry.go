@@ -4,20 +4,26 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 )
 
 type contextKey struct{}
 type providerContextKey struct{}
 
 type Registry struct {
-	providers  map[string]Provider
-	stateStore StateStore
+	providers    map[string]Provider
+	stateStore   StateStore
+	sessionStore SessionStore
 }
 
 type Option func(*Registry)
 
 func WithStateStore(s StateStore) Option {
 	return func(r *Registry) { r.stateStore = s }
+}
+
+func WithSessionStore(s SessionStore) Option {
+	return func(r *Registry) { r.sessionStore = s }
 }
 
 func New(opts ...Option) *Registry {
@@ -110,6 +116,51 @@ func UserFromContext(ctx context.Context) (User, error) {
 func ProviderFromContext(ctx context.Context) string {
 	name, _ := ctx.Value(providerContextKey{}).(string)
 	return name
+}
+
+func (r *Registry) SaveSession(w http.ResponseWriter, req *http.Request) error {
+	if r.sessionStore == nil {
+		return errors.New("goauth: no SessionStore configured — use WithSessionStore()")
+	}
+	user, err := UserFromContext(req.Context())
+	if err != nil {
+		return err
+	}
+	return r.sessionStore.Save(w, user)
+}
+
+func (r *Registry) DeleteSession(w http.ResponseWriter, req *http.Request) error {
+	if r.sessionStore == nil {
+		return errors.New("goauth: no SessionStore configured — use WithSessionStore()")
+	}
+	return r.sessionStore.Delete(w, req)
+}
+
+func (r *Registry) LoadSessionMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if r.sessionStore == nil {
+				next.ServeHTTP(w, req)
+				return
+			}
+
+			user, ok := r.sessionStore.Get(req)
+			if !ok {
+				next.ServeHTTP(w, req)
+				return
+			}
+
+			if cs, ok := r.sessionStore.(*CookieSessionStore); ok {
+				_, expiry, _ := cs.GetWithExpiry(req)
+				if time.Until(expiry) < time.Duration(cs.maxAge/2)*time.Second {
+					r.sessionStore.Save(w, user)
+				}
+			}
+
+			ctx := StoreUserInContext(req.Context(), user)
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	}
 }
 
 func (r *Registry) AuthRequired(next http.Handler) http.Handler {
