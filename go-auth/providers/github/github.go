@@ -2,6 +2,7 @@ package github
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	goauth "github.com/haze/go-auth"
@@ -82,6 +83,10 @@ func fetchPrimaryEmail(client *http.Client) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return "", fmt.Errorf("emails request failed with status %d", res.StatusCode)
+	}
 
 	var emails []struct {
 		Email    string `json:"email"`

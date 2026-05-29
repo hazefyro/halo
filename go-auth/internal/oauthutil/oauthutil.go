@@ -3,6 +3,7 @@ package oauthutil
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	goauth "github.com/haze/go-auth"
 	"golang.org/x/oauth2"
@@ -34,6 +35,10 @@ func FetchUserInfo(ctx context.Context, config *oauth2.Config, code, url string)
 		return nil, nil, err
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, nil, fmt.Errorf("userinfo request failed with status %d", res.StatusCode)
+	}
 
 	var raw map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
