@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	goauth "github.com/haze/go-auth"
 	"golang.org/x/oauth2"
 )
+
+const maxBodyBytes = 1 << 20 // 1 MB
 
 func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken string) (goauth.Token, error) {
 	token, err := config.TokenSource(ctx, &oauth2.Token{
@@ -45,7 +48,7 @@ func FetchUserInfo(ctx context.Context, config *oauth2.Config, code, url string)
 	}
 
 	var raw map[string]any
-	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
+	if err := json.NewDecoder(io.LimitReader(res.Body, maxBodyBytes)).Decode(&raw); err != nil {
 		return nil, nil, err
 	}
 

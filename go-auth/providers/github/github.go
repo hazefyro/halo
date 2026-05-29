@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	goauth "github.com/haze/go-auth"
@@ -134,7 +135,7 @@ func fetchPrimaryEmail(client *http.Client) (string, error) {
 		Verified bool   `json:"verified"`
 	}
 
-	if err := json.NewDecoder(res.Body).Decode(&emails); err != nil {
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&emails); err != nil {
 		return "", err
 	}
 
