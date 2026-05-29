@@ -8,11 +8,17 @@ import (
 	goauth "github.com/haze/go-auth"
 	"github.com/haze/go-auth/internal/maputil"
 	"github.com/haze/go-auth/internal/oauthutil"
+	"github.com/haze/go-auth/internal/provideropts"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 )
 
 const userInfoURL = "https://discord.com/api/users/@me"
+
+type Option = provideropts.Option
+
+var WithScopes = provideropts.WithScopes
+var WithAuthCodeOptions = provideropts.WithAuthCodeOptions
 
 type Provider struct {
 	config          *oauth2.Config
@@ -20,31 +26,23 @@ type Provider struct {
 	authCodeOptions []oauth2.AuthCodeOption
 }
 
-type Option func(*Provider)
-
-func WithScopes(scopes ...string) Option {
-	return func(p *Provider) { p.config.Scopes = scopes }
-}
-
-func WithAuthCodeOptions(opts ...oauth2.AuthCodeOption) Option {
-	return func(p *Provider) { p.authCodeOptions = append(p.authCodeOptions, opts...) }
-}
-
 func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
-	p := &Provider{
+	cfg := provideropts.Apply(opts)
+	scopes := []string{"identify", "email"}
+	if len(cfg.Scopes) > 0 {
+		scopes = cfg.Scopes
+	}
+	return &Provider{
 		config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
-			Scopes:       []string{"identify", "email"},
+			Scopes:       scopes,
 			Endpoint:     endpoints.Discord,
 		},
-		userInfoURL: userInfoURL,
+		userInfoURL:     userInfoURL,
+		authCodeOptions: cfg.AuthCodeOptions,
 	}
-	for _, opt := range opts {
-		opt(p)
-	}
-	return p
 }
 
 func (p *Provider) Name() string { return "discord" }

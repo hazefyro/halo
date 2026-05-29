@@ -9,6 +9,7 @@ import (
 	goauth "github.com/haze/go-auth"
 	"github.com/haze/go-auth/internal/maputil"
 	"github.com/haze/go-auth/internal/oauthutil"
+	"github.com/haze/go-auth/internal/provideropts"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
@@ -16,37 +17,34 @@ import (
 const userInfoURL = "https://api.github.com/user"
 const userEmailURL = "https://api.github.com/user/emails"
 
+type Option = provideropts.Option
+
+var WithScopes = provideropts.WithScopes
+var WithAuthCodeOptions = provideropts.WithAuthCodeOptions
+
 type Provider struct {
 	config          *oauth2.Config
 	userInfoURL     string
 	authCodeOptions []oauth2.AuthCodeOption
 }
 
-type Option func(*Provider)
-
-func WithScopes(scopes ...string) Option {
-	return func(p *Provider) { p.config.Scopes = scopes }
-}
-
-func WithAuthCodeOptions(opts ...oauth2.AuthCodeOption) Option {
-	return func(p *Provider) { p.authCodeOptions = append(p.authCodeOptions, opts...) }
-}
-
 func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
-	p := &Provider{
+	cfg := provideropts.Apply(opts)
+	scopes := []string{"read:user", "user:email"}
+	if len(cfg.Scopes) > 0 {
+		scopes = cfg.Scopes
+	}
+	return &Provider{
 		config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
-			Scopes:       []string{"read:user", "user:email"},
+			Scopes:       scopes,
 			Endpoint:     github.Endpoint,
 		},
-		userInfoURL: userInfoURL,
+		userInfoURL:     userInfoURL,
+		authCodeOptions: cfg.AuthCodeOptions,
 	}
-	for _, opt := range opts {
-		opt(p)
-	}
-	return p
 }
 
 func (p *Provider) Name() string { return "github" }
