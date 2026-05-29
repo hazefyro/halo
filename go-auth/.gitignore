@@ -1,3 +1,6 @@
 docs/
 .env
 .claude
+
+tmp/
+go.work
