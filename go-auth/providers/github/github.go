@@ -56,7 +56,7 @@ func (p *Provider) BeginAuth(state string) (string, error) {
 	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
-func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credentials, map[string]any, error) {
+func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credentials, goauth.RawData, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		return goauth.User{}, goauth.Credentials{}, nil, goauth.ErrMissingCode

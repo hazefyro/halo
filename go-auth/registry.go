@@ -135,8 +135,8 @@ func ProviderFromContext(ctx context.Context) string {
 	return name
 }
 
-func RawDataFromContext(ctx context.Context) map[string]any {
-	raw, _ := ctx.Value(rawDataContextKey{}).(map[string]any)
+func RawDataFromContext(ctx context.Context) RawData {
+	raw, _ := ctx.Value(rawDataContextKey{}).(RawData)
 	return raw
 }
 

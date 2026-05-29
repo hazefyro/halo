@@ -2,6 +2,9 @@ package goauth
 
 import "time"
 
+// RawData is the raw JSON payload returned by the provider's userinfo endpoint.
+type RawData map[string]any
+
 type User struct {
 	ID        string
 	Email     string
