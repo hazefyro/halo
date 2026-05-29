@@ -7,6 +7,7 @@ import (
 )
 
 type contextKey struct{}
+type providerContextKey struct{}
 
 type Registry struct {
 	providers  map[string]Provider
@@ -89,8 +90,13 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 			return
 		}
 		ctx := context.WithValue(req.Context(), contextKey{}, user)
+		ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
 		next.ServeHTTP(w, req.WithContext(ctx))
 	}
+}
+
+func StoreUserInContext(ctx context.Context, user User) context.Context {
+	return context.WithValue(ctx, contextKey{}, user)
 }
 
 func UserFromContext(ctx context.Context) (User, error) {
@@ -99,4 +105,19 @@ func UserFromContext(ctx context.Context) (User, error) {
 		return User{}, errors.New("goauth: no user in context")
 	}
 	return u, nil
+}
+
+func ProviderFromContext(ctx context.Context) string {
+	name, _ := ctx.Value(providerContextKey{}).(string)
+	return name
+}
+
+func (r *Registry) AuthRequired(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if _, err := UserFromContext(req.Context()); err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, req)
+	})
 }
