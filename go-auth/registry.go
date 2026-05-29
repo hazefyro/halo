@@ -80,6 +80,13 @@ func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerNa
 		return err
 	}
 
+	if code := req.URL.Query().Get("error"); code != "" {
+		return &CallbackError{
+			Code:        code,
+			Description: req.URL.Query().Get("error_description"),
+		}
+	}
+
 	if err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name()); err != nil {
 		return err
 	}
