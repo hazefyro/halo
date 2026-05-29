@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -89,10 +88,6 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credential
 		ExpiresAt:    token.Expiry,
 	}
 	return user, creds, raw, nil
-}
-
-func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Token, error) {
-	return oauthutil.RefreshToken(ctx, p.config, refreshToken)
 }
 
 func fetchPrimaryEmail(client *http.Client) (string, error) {
