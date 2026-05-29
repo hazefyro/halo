@@ -59,7 +59,7 @@ func (r *Registry) BeginAuthHandler() http.HandlerFunc {
 			return
 		}
 
-		state, err := r.stateStore.Generate(w, req)
+		state, err := r.stateStore.Generate(w, req, p.Name())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -83,11 +83,11 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		if err := r.stateStore.Verify(req, req.URL.Query().Get("state")); err != nil {
+		if err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name()); err != nil {
 			http.Error(w, ErrStateMismatch.Error(), http.StatusUnauthorized)
 			return
 		}
-		r.stateStore.Clear(w)
+		r.stateStore.Clear(w, p.Name())
 
 		user, err := p.CompleteAuth(req)
 		if err != nil {
