@@ -12,6 +12,7 @@ var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 type contextKey struct{}
 type credentialsContextKey struct{}
 type providerContextKey struct{}
+type rawDataContextKey struct{}
 
 type Registry struct {
 	providers    map[string]Provider
@@ -96,7 +97,7 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 		}
 		r.stateStore.Clear(w, p.Name())
 
-		user, creds, err := p.CompleteAuth(req)
+		user, creds, raw, err := p.CompleteAuth(req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -104,6 +105,7 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 		ctx := context.WithValue(req.Context(), contextKey{}, user)
 		ctx = context.WithValue(ctx, credentialsContextKey{}, creds)
 		ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
+		ctx = context.WithValue(ctx, rawDataContextKey{}, raw)
 		next.ServeHTTP(w, req.WithContext(ctx))
 	}
 }
@@ -131,6 +133,11 @@ func CredentialsFromContext(ctx context.Context) (Credentials, error) {
 func ProviderFromContext(ctx context.Context) string {
 	name, _ := ctx.Value(providerContextKey{}).(string)
 	return name
+}
+
+func RawDataFromContext(ctx context.Context) map[string]any {
+	raw, _ := ctx.Value(rawDataContextKey{}).(map[string]any)
+	return raw
 }
 
 func (r *Registry) SaveSession(w http.ResponseWriter, req *http.Request) error {

@@ -54,15 +54,15 @@ func (p *Provider) BeginAuth(state string) (string, error) {
 	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
-func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credentials, error) {
+func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credentials, map[string]any, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		return goauth.User{}, goauth.Credentials{}, goauth.ErrMissingCode
+		return goauth.User{}, goauth.Credentials{}, nil, goauth.ErrMissingCode
 	}
 
 	raw, token, err := oauthutil.FetchUserInfo(r.Context(), p.config, code, p.userInfoURL)
 	if err != nil {
-		return goauth.User{}, goauth.Credentials{}, err
+		return goauth.User{}, goauth.Credentials{}, nil, err
 	}
 
 	id := maputil.GetID(raw, "id")
@@ -84,9 +84,8 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credential
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
-		RawData:      raw,
 	}
-	return user, creds, nil
+	return user, creds, raw, nil
 }
 
 func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Token, error) {

@@ -15,7 +15,6 @@ type Credentials struct {
 	AccessToken  string
 	RefreshToken string
 	ExpiresAt    time.Time
-	RawData      map[string]any
 }
 
 type Token struct {
