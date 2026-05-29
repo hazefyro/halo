@@ -135,7 +135,9 @@ func fetchPrimaryEmail(client *http.Client) (string, error) {
 		Verified bool   `json:"verified"`
 	}
 
-	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&emails); err != nil {
+	dec := json.NewDecoder(io.LimitReader(res.Body, 1<<20))
+	dec.UseNumber()
+	if err := dec.Decode(&emails); err != nil {
 		return "", err
 	}
 

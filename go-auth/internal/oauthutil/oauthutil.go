@@ -47,8 +47,10 @@ func FetchUserInfo(ctx context.Context, config *oauth2.Config, code, url string)
 		return nil, nil, fmt.Errorf("userinfo request failed with status %d", res.StatusCode)
 	}
 
+	dec := json.NewDecoder(io.LimitReader(res.Body, maxBodyBytes))
+	dec.UseNumber()
 	var raw map[string]any
-	if err := json.NewDecoder(io.LimitReader(res.Body, maxBodyBytes)).Decode(&raw); err != nil {
+	if err := dec.Decode(&raw); err != nil {
 		return nil, nil, err
 	}
 
