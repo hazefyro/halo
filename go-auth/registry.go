@@ -92,15 +92,15 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 		}
 		r.stateStore.Clear(w, p.Name())
 
-		user, creds, raw, err := p.CompleteAuth(req)
+		result, err := p.CompleteAuth(req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		ctx := context.WithValue(req.Context(), contextKey{}, user)
-		ctx = context.WithValue(ctx, credentialsContextKey{}, creds)
+		ctx := context.WithValue(req.Context(), contextKey{}, result.User)
+		ctx = context.WithValue(ctx, credentialsContextKey{}, result.Credentials)
 		ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
-		ctx = context.WithValue(ctx, rawDataContextKey{}, raw)
+		ctx = context.WithValue(ctx, rawDataContextKey{}, result.RawData)
 		next.ServeHTTP(w, req.WithContext(ctx))
 	}
 }

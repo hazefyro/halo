@@ -8,7 +8,7 @@ import (
 type Provider interface {
 	Name() string
 	BeginAuth(state string) (string, error)
-	CompleteAuth(r *http.Request) (User, Credentials, RawData, error)
+	CompleteAuth(r *http.Request) (AuthResult, error)
 }
 
 // TokenRefresher is an optional capability a Provider may implement.

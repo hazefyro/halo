@@ -54,15 +54,15 @@ func (p *Provider) BeginAuth(state string) (string, error) {
 	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
-func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credentials, goauth.RawData, error) {
+func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		return goauth.User{}, goauth.Credentials{}, nil, goauth.ErrMissingCode
+		return goauth.AuthResult{}, goauth.ErrMissingCode
 	}
 
 	raw, token, err := oauthutil.FetchUserInfo(r.Context(), p.config, code, p.userInfoURL)
 	if err != nil {
-		return goauth.User{}, goauth.Credentials{}, nil, err
+		return goauth.AuthResult{}, err
 	}
 
 	id := maputil.GetID(raw, "id")
@@ -72,20 +72,22 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credential
 		avatarURL = fmt.Sprintf("https://cdn.discordapp.com/avatars/%s/%s.png", id, avatarHash)
 	}
 
-	user := goauth.User{
-		ID:        id,
-		Email:     maputil.GetString(raw, "email"),
-		Username:  maputil.GetString(raw, "username"),
-		Name:      maputil.GetString(raw, "global_name"),
-		AvatarURL: avatarURL,
-		Provider:  p.Name(),
-	}
-	creds := goauth.Credentials{
-		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
-		ExpiresAt:    token.Expiry,
-	}
-	return user, creds, raw, nil
+	return goauth.AuthResult{
+		User: goauth.User{
+			ID:        id,
+			Email:     maputil.GetString(raw, "email"),
+			Username:  maputil.GetString(raw, "username"),
+			Name:      maputil.GetString(raw, "global_name"),
+			AvatarURL: avatarURL,
+			Provider:  p.Name(),
+		},
+		Credentials: goauth.Credentials{
+			AccessToken:  token.AccessToken,
+			RefreshToken: token.RefreshToken,
+			ExpiresAt:    token.Expiry,
+		},
+		RawData: raw,
+	}, nil
 }
 
 func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Token, error) {
