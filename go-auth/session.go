@@ -113,7 +113,7 @@ func (s *CookieSessionStore) parseClaims(r *http.Request) (*sessionClaims, bool)
 	}
 	claims := &sessionClaims{}
 	token, err := jwt.ParseWithClaims(cookie.Value, claims, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		if t.Method != jwt.SigningMethodHS256 {
 			return nil, jwt.ErrSignatureInvalid
 		}
 		return s.secret, nil
