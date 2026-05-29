@@ -1,11 +1,9 @@
 package goauth
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 
+	"github.com/haze/go-auth/internal/hmacutil"
 	"github.com/haze/go-auth/internal/randstate"
 )
 
@@ -16,8 +14,15 @@ type StateStore interface {
 }
 
 type CookieStateStore struct {
-	secret []byte
-	secure bool
+	secret     []byte
+	secure     bool
+	cookieName string
+}
+
+type CookieStateOption func(*CookieStateStore)
+
+func WithStateCookieName(name string) CookieStateOption {
+	return func(s *CookieStateStore) { s.cookieName = name }
 }
 
 func NewCookieStateStore(secret string) *CookieStateStore {
@@ -40,7 +45,7 @@ func (s *CookieStateStore) Generate(w http.ResponseWriter, r *http.Request) (str
 		return "", err
 	}
 
-	signed := s.sign(state)
+	signed := hmacutil.Sign(s.secret, state)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "goauth_state",
@@ -58,7 +63,7 @@ func (s *CookieStateStore) Verify(r *http.Request, state string) error {
 	if err != nil {
 		return ErrStateMismatch
 	}
-	if cookie.Value != s.sign(state) {
+	if cookie.Value != hmacutil.Sign(s.secret, state) {
 		return ErrStateMismatch
 	}
 
@@ -73,10 +78,4 @@ func (s *CookieStateStore) Clear(w http.ResponseWriter) {
 		HttpOnly: true,
 		MaxAge:   -1,
 	})
-}
-
-func (s *CookieStateStore) sign(state string) string {
-	mac := hmac.New(sha256.New, s.secret)
-	mac.Write([]byte(state))
-	return hex.EncodeToString(mac.Sum(nil))
 }
