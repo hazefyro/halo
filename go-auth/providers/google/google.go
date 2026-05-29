@@ -84,9 +84,14 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 		return goauth.AuthResult{}, err
 	}
 
+	id := maputil.GetID(raw, "sub")
+	if id == "" {
+		return goauth.AuthResult{}, goauth.ErrMissingUserID
+	}
+
 	return goauth.AuthResult{
 		User: goauth.User{
-			ID:        maputil.GetID(raw, "sub"),
+			ID:        id,
 			Email:     maputil.GetString(raw, "email"),
 			Name:      maputil.GetString(raw, "name"),
 			AvatarURL: maputil.GetString(raw, "picture"),
