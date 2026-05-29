@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,10 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
+
+var WithHTTPClient = provideropts.WithHTTPClient
+var WithUserInfoURL = provideropts.WithUserInfoURL
+var WithEndpoint = provideropts.WithEndpoint
 
 const userInfoURL = "https://api.github.com/user"
 const userEmailURL = "https://api.github.com/user/emails"
@@ -25,6 +30,7 @@ var WithAuthCodeOptions = provideropts.WithAuthCodeOptions
 type Provider struct {
 	config          *oauth2.Config
 	userInfoURL     string
+	httpClient      *http.Client
 	authCodeOptions []oauth2.AuthCodeOption
 }
 
@@ -36,15 +42,24 @@ func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 	} else {
 		scopes = append(scopes, cfg.AdditionalScopes...)
 	}
+	endpoint := github.Endpoint
+	if cfg.Endpoint != nil {
+		endpoint = *cfg.Endpoint
+	}
+	infoURL := userInfoURL
+	if cfg.UserInfoURL != "" {
+		infoURL = cfg.UserInfoURL
+	}
 	return &Provider{
 		config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
 			Scopes:       scopes,
-			Endpoint:     github.Endpoint,
+			Endpoint:     endpoint,
 		},
-		userInfoURL:     userInfoURL,
+		userInfoURL:     infoURL,
+		httpClient:      cfg.HTTPClient,
 		authCodeOptions: cfg.AuthCodeOptions,
 	}
 }
@@ -61,7 +76,12 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 		return goauth.AuthResult{}, goauth.ErrMissingCode
 	}
 
-	raw, token, err := oauthutil.FetchUserInfo(r.Context(), p.config, code, p.userInfoURL)
+	ctx := r.Context()
+	if p.httpClient != nil {
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.httpClient)
+	}
+
+	raw, token, err := oauthutil.FetchUserInfo(ctx, p.config, code, p.userInfoURL)
 	if err != nil {
 		return goauth.AuthResult{}, err
 	}

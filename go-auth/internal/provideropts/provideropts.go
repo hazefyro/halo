@@ -1,11 +1,18 @@
 package provideropts
 
-import "golang.org/x/oauth2"
+import (
+	"net/http"
+
+	"golang.org/x/oauth2"
+)
 
 type Config struct {
 	Scopes           []string
 	AdditionalScopes []string
 	AuthCodeOptions  []oauth2.AuthCodeOption
+	HTTPClient       *http.Client
+	UserInfoURL      string
+	Endpoint         *oauth2.Endpoint
 }
 
 type Option func(*Config)
@@ -20,6 +27,18 @@ func WithAdditionalScopes(scopes ...string) Option {
 
 func WithAuthCodeOptions(opts ...oauth2.AuthCodeOption) Option {
 	return func(c *Config) { c.AuthCodeOptions = append(c.AuthCodeOptions, opts...) }
+}
+
+func WithHTTPClient(client *http.Client) Option {
+	return func(c *Config) { c.HTTPClient = client }
+}
+
+func WithUserInfoURL(url string) Option {
+	return func(c *Config) { c.UserInfoURL = url }
+}
+
+func WithEndpoint(e oauth2.Endpoint) Option {
+	return func(c *Config) { c.Endpoint = &e }
 }
 
 func Apply(opts []Option) Config {
