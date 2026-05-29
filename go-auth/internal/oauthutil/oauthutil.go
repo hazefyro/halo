@@ -12,18 +12,18 @@ import (
 
 const maxBodyBytes = 1 << 20 // 1 MB
 
-func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken string) (goauth.Token, error) {
+func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken string) (goauth.Credentials, error) {
 	token, err := config.TokenSource(ctx, &oauth2.Token{
 		RefreshToken: refreshToken,
 	}).Token()
 	if err != nil {
-		return goauth.Token{}, err
+		return goauth.Credentials{}, err
 	}
 	newRefresh := token.RefreshToken
 	if newRefresh == "" {
 		newRefresh = refreshToken
 	}
-	return goauth.Token{
+	return goauth.Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: newRefresh,
 		ExpiresAt:    token.Expiry,

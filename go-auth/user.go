@@ -20,12 +20,6 @@ type Credentials struct {
 	ExpiresAt    time.Time
 }
 
-type Token struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    time.Time
-}
-
 type AuthResult struct {
 	User        User
 	Credentials Credentials

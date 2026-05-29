@@ -113,7 +113,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 	}, nil
 }
 
-func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Token, error) {
+func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Credentials, error) {
 	if p.httpClient != nil {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.httpClient)
 	}
