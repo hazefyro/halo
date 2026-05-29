@@ -16,9 +16,13 @@ func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken strin
 	if err != nil {
 		return goauth.Token{}, err
 	}
+	newRefresh := token.RefreshToken
+	if newRefresh == "" {
+		newRefresh = refreshToken
+	}
 	return goauth.Token{
 		AccessToken:  token.AccessToken,
-		RefreshToken: token.RefreshToken,
+		RefreshToken: newRefresh,
 		ExpiresAt:    token.Expiry,
 	}, nil
 }
