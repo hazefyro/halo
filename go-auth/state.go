@@ -14,16 +14,11 @@ type StateStore interface {
 }
 
 type CookieStateStore struct {
-	secret     []byte
-	secure     bool
-	cookieName string
+	secret []byte
+	secure bool
 }
 
 type CookieStateOption func(*CookieStateStore)
-
-func WithStateCookieName(name string) CookieStateOption {
-	return func(s *CookieStateStore) { s.cookieName = name }
-}
 
 func NewCookieStateStore(secret string) *CookieStateStore {
 	if secret == "" {

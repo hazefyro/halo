@@ -9,8 +9,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func RefreshToken(config *oauth2.Config, refreshToken string) (goauth.Token, error) {
-	token, err := config.TokenSource(context.Background(), &oauth2.Token{
+func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken string) (goauth.Token, error) {
+	token, err := config.TokenSource(ctx, &oauth2.Token{
 		RefreshToken: refreshToken,
 	}).Token()
 	if err != nil {

@@ -1,6 +1,7 @@
 package google
 
 import (
+	"context"
 	"net/http"
 
 	goauth "github.com/haze/go-auth"
@@ -60,6 +61,6 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
 	}, nil
 }
 
-func (p *Provider) RefreshToken(refreshToken string) (goauth.Token, error) {
-	return oauthutil.RefreshToken(p.config, refreshToken)
+func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Token, error) {
+	return oauthutil.RefreshToken(ctx, p.config, refreshToken)
 }
