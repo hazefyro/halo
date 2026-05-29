@@ -55,38 +55,40 @@ func (p *Provider) BeginAuth(state string) (string, error) {
 	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
-func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
+func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, goauth.Credentials, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		return goauth.User{}, goauth.ErrMissingCode
+		return goauth.User{}, goauth.Credentials{}, goauth.ErrMissingCode
 	}
 
 	raw, token, err := oauthutil.FetchUserInfo(r.Context(), p.config, code, p.userInfoURL)
 	if err != nil {
-		return goauth.User{}, err
+		return goauth.User{}, goauth.Credentials{}, err
 	}
 
 	email := maputil.GetString(raw, "email")
 	if email == "" {
 		email, err = fetchPrimaryEmail(p.config.Client(r.Context(), token))
 		if err != nil {
-			return goauth.User{}, err
+			return goauth.User{}, goauth.Credentials{}, err
 		}
 	}
 
-	return goauth.User{
-		ID:           maputil.GetID(raw, "id"),
-		Email:        email,
-		Username:     maputil.GetString(raw, "login"),
-		Name:         maputil.GetString(raw, "name"),
-		AvatarURL:    maputil.GetString(raw, "avatar_url"),
-		Provider:     p.Name(),
+	user := goauth.User{
+		ID:        maputil.GetID(raw, "id"),
+		Email:     email,
+		Username:  maputil.GetString(raw, "login"),
+		Name:      maputil.GetString(raw, "name"),
+		AvatarURL: maputil.GetString(raw, "avatar_url"),
+		Provider:  p.Name(),
+	}
+	creds := goauth.Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
 		RawData:      raw,
-	}, nil
-
+	}
+	return user, creds, nil
 }
 
 func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Token, error) {

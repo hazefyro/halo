@@ -10,6 +10,7 @@ import (
 var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type contextKey struct{}
+type credentialsContextKey struct{}
 type providerContextKey struct{}
 
 type Registry struct {
@@ -95,12 +96,13 @@ func (r *Registry) CallbackHandler(next http.Handler) http.HandlerFunc {
 		}
 		r.stateStore.Clear(w, p.Name())
 
-		user, err := p.CompleteAuth(req)
+		user, creds, err := p.CompleteAuth(req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		ctx := context.WithValue(req.Context(), contextKey{}, user)
+		ctx = context.WithValue(ctx, credentialsContextKey{}, creds)
 		ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
 		next.ServeHTTP(w, req.WithContext(ctx))
 	}
@@ -116,6 +118,14 @@ func UserFromContext(ctx context.Context) (User, error) {
 		return User{}, errors.New("goauth: no user in context")
 	}
 	return u, nil
+}
+
+func CredentialsFromContext(ctx context.Context) (Credentials, error) {
+	c, ok := ctx.Value(credentialsContextKey{}).(Credentials)
+	if !ok {
+		return Credentials{}, errors.New("goauth: no credentials in context")
+	}
+	return c, nil
 }
 
 func ProviderFromContext(ctx context.Context) string {
