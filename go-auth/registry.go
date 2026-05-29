@@ -39,6 +39,9 @@ func (r *Registry) Register(p Provider) error {
 	if !validProviderName.MatchString(p.Name()) {
 		return errors.New("goauth: provider name " + p.Name() + " contains invalid characters — use only a-z, A-Z, 0-9, - and _")
 	}
+	if _, exists := r.providers[p.Name()]; exists {
+		return errors.New("goauth: provider " + p.Name() + " is already registered")
+	}
 	r.providers[p.Name()] = p
 	return nil
 }
@@ -78,6 +81,10 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 }
 
 func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string, next http.Handler) error {
+	if next == nil {
+		return errors.New("goauth: next handler must not be nil")
+	}
+
 	p, err := r.Get(providerName)
 	if err != nil {
 		return err
