@@ -13,18 +13,30 @@ import (
 	"golang.org/x/oauth2/endpoints"
 )
 
+// WithHTTPClient configures the HTTP client used for token and userinfo calls.
 var WithHTTPClient = provideropts.WithHTTPClient
+
+// WithUserInfoURL overrides the Discord userinfo endpoint.
 var WithUserInfoURL = provideropts.WithUserInfoURL
+
+// WithEndpoint overrides the Discord OAuth endpoint.
 var WithEndpoint = provideropts.WithEndpoint
 
 const userInfoURL = "https://discord.com/api/users/@me"
 
+// Option configures a Provider.
 type Option = provideropts.Option
 
+// WithScopes replaces the default OAuth scopes.
 var WithScopes = provideropts.WithScopes
+
+// WithAdditionalScopes appends scopes to the defaults.
 var WithAdditionalScopes = provideropts.WithAdditionalScopes
+
+// WithAuthCodeOptions adds options to the authorization URL.
 var WithAuthCodeOptions = provideropts.WithAuthCodeOptions
 
+// Provider implements Discord OAuth2 authentication.
 type Provider struct {
 	config          *oauth2.Config
 	userInfoURL     string
@@ -32,6 +44,7 @@ type Provider struct {
 	authCodeOptions []oauth2.AuthCodeOption
 }
 
+// New creates a Discord provider.
 func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 	cfg := provideropts.Apply(opts)
 	scopes := []string{"identify", "email"}
@@ -62,12 +75,15 @@ func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 	}
 }
 
+// Name returns the provider name.
 func (p *Provider) Name() string { return "discord" }
 
+// BeginAuth returns the Discord authorization URL.
 func (p *Provider) BeginAuth(state string) (string, error) {
 	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
+// CompleteAuth exchanges a callback request for identity and credentials.
 func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -113,6 +129,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 	}, nil
 }
 
+// RefreshToken refreshes Discord OAuth credentials.
 func (p *Provider) RefreshToken(ctx context.Context, refreshToken string) (goauth.Credentials, error) {
 	if p.httpClient != nil {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.httpClient)

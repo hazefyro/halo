@@ -12,6 +12,7 @@ import (
 
 const maxBodyBytes = 1 << 20 // 1 MB
 
+// RefreshToken refreshes OAuth credentials with a refresh token.
 func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken string) (goauth.Credentials, error) {
 	token, err := config.TokenSource(ctx, &oauth2.Token{
 		RefreshToken: refreshToken,
@@ -30,6 +31,7 @@ func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken strin
 	}, nil
 }
 
+// FetchUserInfo exchanges an auth code and fetches provider userinfo JSON.
 func FetchUserInfo(ctx context.Context, config *oauth2.Config, code, url string) (map[string]any, *oauth2.Token, error) {
 	token, err := config.Exchange(ctx, code)
 	if err != nil {

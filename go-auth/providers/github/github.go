@@ -15,19 +15,31 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
+// WithHTTPClient configures the HTTP client used for token and userinfo calls.
 var WithHTTPClient = provideropts.WithHTTPClient
+
+// WithUserInfoURL overrides the GitHub user endpoint.
 var WithUserInfoURL = provideropts.WithUserInfoURL
+
+// WithEndpoint overrides the GitHub OAuth endpoint.
 var WithEndpoint = provideropts.WithEndpoint
 
 const userInfoURL = "https://api.github.com/user"
 const userEmailURL = "https://api.github.com/user/emails"
 
+// Option configures a Provider.
 type Option = provideropts.Option
 
+// WithScopes replaces the default OAuth scopes.
 var WithScopes = provideropts.WithScopes
+
+// WithAdditionalScopes appends scopes to the defaults.
 var WithAdditionalScopes = provideropts.WithAdditionalScopes
+
+// WithAuthCodeOptions adds options to the authorization URL.
 var WithAuthCodeOptions = provideropts.WithAuthCodeOptions
 
+// Provider implements GitHub OAuth2 authentication.
 type Provider struct {
 	config          *oauth2.Config
 	userInfoURL     string
@@ -35,6 +47,7 @@ type Provider struct {
 	authCodeOptions []oauth2.AuthCodeOption
 }
 
+// New creates a GitHub provider.
 func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 	cfg := provideropts.Apply(opts)
 	scopes := []string{"read:user", "user:email"}
@@ -65,12 +78,15 @@ func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 	}
 }
 
+// Name returns the provider name.
 func (p *Provider) Name() string { return "github" }
 
+// BeginAuth returns the GitHub authorization URL.
 func (p *Provider) BeginAuth(state string) (string, error) {
 	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
+// CompleteAuth exchanges a callback request for identity and credentials.
 func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {

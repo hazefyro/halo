@@ -13,17 +13,21 @@ var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type authResultKey struct{}
 
+// Registry stores providers and coordinates OAuth begin and callback flows.
 type Registry struct {
 	providers  map[string]Provider
 	stateStore StateStore
 }
 
+// Option configures a Registry.
 type Option func(*Registry)
 
+// WithStateStore configures the state store used for OAuth state validation.
 func WithStateStore(s StateStore) Option {
 	return func(r *Registry) { r.stateStore = s }
 }
 
+// New creates a Registry.
 func New(opts ...Option) (*Registry, error) {
 	r := &Registry{providers: make(map[string]Provider)}
 	for _, opt := range opts {
@@ -35,6 +39,7 @@ func New(opts ...Option) (*Registry, error) {
 	return r, nil
 }
 
+// Register adds a provider to the registry.
 func (r *Registry) Register(p Provider) error {
 	if !validProviderName.MatchString(p.Name()) {
 		return errors.New("goauth: provider name " + p.Name() + " contains invalid characters — use only a-z, A-Z, 0-9, - and _")
@@ -46,6 +51,7 @@ func (r *Registry) Register(p Provider) error {
 	return nil
 }
 
+// Get returns a registered provider by name.
 func (r *Registry) Get(name string) (Provider, error) {
 	p, ok := r.providers[name]
 
@@ -56,6 +62,7 @@ func (r *Registry) Get(name string) (Provider, error) {
 	return p, nil
 }
 
+// BeginAuth starts the OAuth flow and redirects to the provider.
 func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerName string) error {
 	p, err := r.Get(providerName)
 	if err != nil {
@@ -80,6 +87,7 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 	return nil
 }
 
+// Callback verifies OAuth state, completes provider auth, and calls next.
 func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string, next http.Handler) error {
 	if next == nil {
 		return errors.New("goauth: next handler must not be nil")
@@ -117,10 +125,12 @@ func authResultFromContext(ctx context.Context) (AuthResult, bool) {
 	return r, ok
 }
 
+// StoreIdentityInContext stores an identity in a context.
 func StoreIdentityInContext(ctx context.Context, identity Identity) context.Context {
 	return context.WithValue(ctx, authResultKey{}, AuthResult{Identity: identity})
 }
 
+// IdentityFromContext returns the authenticated identity from a context.
 func IdentityFromContext(ctx context.Context) (Identity, error) {
 	r, ok := authResultFromContext(ctx)
 	if !ok {
@@ -129,6 +139,7 @@ func IdentityFromContext(ctx context.Context) (Identity, error) {
 	return r.Identity, nil
 }
 
+// CredentialsFromContext returns OAuth credentials from a context.
 func CredentialsFromContext(ctx context.Context) (Credentials, error) {
 	r, ok := authResultFromContext(ctx)
 	if !ok || r.Credentials.AccessToken == "" {
@@ -137,11 +148,13 @@ func CredentialsFromContext(ctx context.Context) (Credentials, error) {
 	return r.Credentials, nil
 }
 
+// ProviderFromContext returns the authenticated provider name from a context.
 func ProviderFromContext(ctx context.Context) string {
 	r, _ := authResultFromContext(ctx)
 	return r.Identity.Provider
 }
 
+// RawDataFromContext returns the provider raw user data from a context.
 func RawDataFromContext(ctx context.Context) (RawData, error) {
 	r, ok := authResultFromContext(ctx)
 	if !ok || r.RawData == nil {
@@ -150,6 +163,7 @@ func RawDataFromContext(ctx context.Context) (RawData, error) {
 	return r.RawData, nil
 }
 
+// AuthRequired returns middleware that rejects requests without an identity.
 func (r *Registry) AuthRequired(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if _, err := IdentityFromContext(req.Context()); err != nil {
