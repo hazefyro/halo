@@ -9,10 +9,7 @@ import (
 
 var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-type contextKey struct{}
-type credentialsContextKey struct{}
-type providerContextKey struct{}
-type rawDataContextKey struct{}
+type authResultKey struct{}
 
 type Registry struct {
 	providers  map[string]Provider
@@ -97,42 +94,44 @@ func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerNa
 		return err
 	}
 
-	ctx := context.WithValue(req.Context(), contextKey{}, result.User)
-	ctx = context.WithValue(ctx, credentialsContextKey{}, result.Credentials)
-	ctx = context.WithValue(ctx, providerContextKey{}, p.Name())
-	ctx = context.WithValue(ctx, rawDataContextKey{}, result.RawData)
+	ctx := context.WithValue(req.Context(), authResultKey{}, result)
 	next.ServeHTTP(w, req.WithContext(ctx))
 	return nil
 }
 
+func authResultFromContext(ctx context.Context) (AuthResult, bool) {
+	r, ok := ctx.Value(authResultKey{}).(AuthResult)
+	return r, ok
+}
+
 func StoreUserInContext(ctx context.Context, user User) context.Context {
-	return context.WithValue(ctx, contextKey{}, user)
+	return context.WithValue(ctx, authResultKey{}, AuthResult{User: user})
 }
 
 func UserFromContext(ctx context.Context) (User, error) {
-	u, ok := ctx.Value(contextKey{}).(User)
+	r, ok := authResultFromContext(ctx)
 	if !ok {
 		return User{}, errors.New("goauth: no user in context")
 	}
-	return u, nil
+	return r.User, nil
 }
 
 func CredentialsFromContext(ctx context.Context) (Credentials, error) {
-	c, ok := ctx.Value(credentialsContextKey{}).(Credentials)
+	r, ok := authResultFromContext(ctx)
 	if !ok {
 		return Credentials{}, errors.New("goauth: no credentials in context")
 	}
-	return c, nil
+	return r.Credentials, nil
 }
 
 func ProviderFromContext(ctx context.Context) string {
-	name, _ := ctx.Value(providerContextKey{}).(string)
-	return name
+	r, _ := authResultFromContext(ctx)
+	return r.User.Provider
 }
 
 func RawDataFromContext(ctx context.Context) RawData {
-	raw, _ := ctx.Value(rawDataContextKey{}).(RawData)
-	return raw
+	r, _ := authResultFromContext(ctx)
+	return r.RawData
 }
 
 func (r *Registry) AuthRequired(next http.Handler) http.Handler {
