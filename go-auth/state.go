@@ -1,6 +1,7 @@
 package goauth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/haze/go-auth/internal/hmacutil"
@@ -18,18 +19,18 @@ type CookieStateStore struct {
 	secure bool
 }
 
-func NewCookieStateStore(secret string) *CookieStateStore {
+func NewCookieStateStore(secret string) (*CookieStateStore, error) {
 	if len(secret) < 32 {
-		panic("goauth: CookieStateStore secret must be at least 32 bytes")
+		return nil, errors.New("goauth: CookieStateStore secret must be at least 32 bytes")
 	}
-	return &CookieStateStore{secret: []byte(secret), secure: true}
+	return &CookieStateStore{secret: []byte(secret), secure: true}, nil
 }
 
-func NewInsecureCookieStateStore(secret string) *CookieStateStore {
+func NewInsecureCookieStateStore(secret string) (*CookieStateStore, error) {
 	if len(secret) < 32 {
-		panic("goauth: CookieStateStore secret must be at least 32 bytes")
+		return nil, errors.New("goauth: CookieStateStore secret must be at least 32 bytes")
 	}
-	return &CookieStateStore{secret: []byte(secret), secure: false}
+	return &CookieStateStore{secret: []byte(secret), secure: false}, nil
 }
 
 func (s *CookieStateStore) cookieName(provider string) string {

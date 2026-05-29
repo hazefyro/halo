@@ -22,16 +22,15 @@ func WithStateStore(s StateStore) Option {
 	return func(r *Registry) { r.stateStore = s }
 }
 
-func New(opts ...Option) *Registry {
+func New(opts ...Option) (*Registry, error) {
 	r := &Registry{providers: make(map[string]Provider)}
 	for _, opt := range opts {
 		opt(r)
 	}
 	if r.stateStore == nil {
-		panic("goauth: no StateStore provided - use WithStateStore()")
+		return nil, errors.New("goauth: no StateStore provided — use WithStateStore()")
 	}
-
-	return r
+	return r, nil
 }
 
 func (r *Registry) Register(p Provider) {
