@@ -17,12 +17,23 @@ const userInfoURL = "https://api.github.com/user"
 const userEmailURL = "https://api.github.com/user/emails"
 
 type Provider struct {
-	config      *oauth2.Config
-	userInfoURL string
+	config          *oauth2.Config
+	userInfoURL     string
+	authCodeOptions []oauth2.AuthCodeOption
 }
 
-func New(clientID, clientSecret, redirectURL string) *Provider {
-	return &Provider{
+type Option func(*Provider)
+
+func WithScopes(scopes ...string) Option {
+	return func(p *Provider) { p.config.Scopes = scopes }
+}
+
+func WithAuthCodeOptions(opts ...oauth2.AuthCodeOption) Option {
+	return func(p *Provider) { p.authCodeOptions = append(p.authCodeOptions, opts...) }
+}
+
+func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
+	p := &Provider{
 		config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -32,12 +43,16 @@ func New(clientID, clientSecret, redirectURL string) *Provider {
 		},
 		userInfoURL: userInfoURL,
 	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
 }
 
 func (p *Provider) Name() string { return "github" }
 
 func (p *Provider) BeginAuth(state string) (string, error) {
-	return p.config.AuthCodeURL(state), nil
+	return p.config.AuthCodeURL(state, p.authCodeOptions...), nil
 }
 
 func (p *Provider) CompleteAuth(r *http.Request) (goauth.User, error) {
