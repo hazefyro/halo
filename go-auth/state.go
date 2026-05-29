@@ -5,11 +5,10 @@ import (
 	"net/http"
 
 	"github.com/haze/go-auth/internal/hmacutil"
-	"github.com/haze/go-auth/internal/randstate"
 )
 
 type StateStore interface {
-	Generate(w http.ResponseWriter, r *http.Request, provider string) (string, error)
+	Store(w http.ResponseWriter, r *http.Request, state, provider string) error
 	Verify(r *http.Request, state, provider string) error
 	Clear(w http.ResponseWriter, provider string)
 }
@@ -37,11 +36,7 @@ func (s *CookieStateStore) cookieName(provider string) string {
 	return "goauth_state_" + provider
 }
 
-func (s *CookieStateStore) Generate(w http.ResponseWriter, r *http.Request, provider string) (string, error) {
-	state, err := randstate.RandomState()
-	if err != nil {
-		return "", err
-	}
+func (s *CookieStateStore) Store(w http.ResponseWriter, r *http.Request, state, provider string) error {
 	http.SetCookie(w, &http.Cookie{
 		Name:     s.cookieName(provider),
 		Value:    hmacutil.Sign(s.secret, state),
@@ -51,7 +46,7 @@ func (s *CookieStateStore) Generate(w http.ResponseWriter, r *http.Request, prov
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   300,
 	})
-	return state, nil
+	return nil
 }
 
 func (s *CookieStateStore) Verify(r *http.Request, state, provider string) error {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+
+	"github.com/haze/go-auth/internal/randstate"
 )
 
 var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -57,13 +59,17 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 		return err
 	}
 
-	state, err := r.stateStore.Generate(w, req, p.Name())
+	state, err := randstate.RandomState()
 	if err != nil {
 		return err
 	}
 
 	redirectURL, err := p.BeginAuth(state)
 	if err != nil {
+		return err
+	}
+
+	if err := r.stateStore.Store(w, req, state, p.Name()); err != nil {
 		return err
 	}
 
