@@ -5,7 +5,7 @@ import "time"
 // RawData is the raw JSON payload returned by the provider's userinfo endpoint.
 type RawData map[string]any
 
-type User struct {
+type Identity struct {
 	ID        string
 	Email     string
 	Name      string
@@ -21,7 +21,7 @@ type Credentials struct {
 }
 
 type AuthResult struct {
-	User        User
+	Identity    Identity
 	Credentials Credentials
 	RawData     RawData
 }

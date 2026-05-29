@@ -117,16 +117,16 @@ func authResultFromContext(ctx context.Context) (AuthResult, bool) {
 	return r, ok
 }
 
-func StoreUserInContext(ctx context.Context, user User) context.Context {
-	return context.WithValue(ctx, authResultKey{}, AuthResult{User: user})
+func StoreIdentityInContext(ctx context.Context, identity Identity) context.Context {
+	return context.WithValue(ctx, authResultKey{}, AuthResult{Identity: identity})
 }
 
-func UserFromContext(ctx context.Context) (User, error) {
+func IdentityFromContext(ctx context.Context) (Identity, error) {
 	r, ok := authResultFromContext(ctx)
 	if !ok {
-		return User{}, errors.New("goauth: no user in context")
+		return Identity{}, errors.New("goauth: no identity in context")
 	}
-	return r.User, nil
+	return r.Identity, nil
 }
 
 func CredentialsFromContext(ctx context.Context) (Credentials, error) {
@@ -139,7 +139,7 @@ func CredentialsFromContext(ctx context.Context) (Credentials, error) {
 
 func ProviderFromContext(ctx context.Context) string {
 	r, _ := authResultFromContext(ctx)
-	return r.User.Provider
+	return r.Identity.Provider
 }
 
 func RawDataFromContext(ctx context.Context) (RawData, error) {
@@ -152,7 +152,7 @@ func RawDataFromContext(ctx context.Context) (RawData, error) {
 
 func (r *Registry) AuthRequired(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if _, err := UserFromContext(req.Context()); err != nil {
+		if _, err := IdentityFromContext(req.Context()); err != nil {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

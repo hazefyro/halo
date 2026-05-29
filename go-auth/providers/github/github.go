@@ -101,7 +101,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 	}
 
 	return goauth.AuthResult{
-		User: goauth.User{
+		Identity: goauth.Identity{
 			ID:        id,
 			Email:     email,
 			Username:  maputil.GetString(raw, "login"),
