@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 
@@ -73,7 +74,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	user, err := goauth.UserFromContext(r.Context())
 	if err == nil {
-		fmt.Fprintf(w, `logged in as %s — <a href='/me'>profile</a> | <form action='/logout' method='POST' style='display:inline'><button type='submit'>logout</button></form>`, user.Name)
+		fmt.Fprintf(w, `logged in as %s — <a href='/me'>profile</a> | <form action='/logout' method='POST' style='display:inline'><button type='submit'>logout</button></form>`, html.EscapeString(user.Name))
 		return
 	}
 	fmt.Fprint(w, `
