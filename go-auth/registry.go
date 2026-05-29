@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 )
+
+var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type contextKey struct{}
 type providerContextKey struct{}
@@ -38,6 +41,9 @@ func New(opts ...Option) *Registry {
 }
 
 func (r *Registry) Register(p Provider) {
+	if !validProviderName.MatchString(p.Name()) {
+		panic("goauth: provider name " + p.Name() + " contains invalid characters — use only a-z, A-Z, 0-9, - and _")
+	}
 	r.providers[p.Name()] = p
 }
 
