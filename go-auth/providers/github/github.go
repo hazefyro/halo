@@ -88,7 +88,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (goauth.AuthResult, error) {
 
 	email := maputil.GetString(raw, "email")
 	if email == "" {
-		email, err = fetchPrimaryEmail(p.config.Client(r.Context(), token))
+		email, err = fetchPrimaryEmail(p.config.Client(ctx, token))
 		if err != nil {
 			return goauth.AuthResult{}, err
 		}
