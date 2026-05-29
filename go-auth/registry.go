@@ -15,19 +15,14 @@ type providerContextKey struct{}
 type rawDataContextKey struct{}
 
 type Registry struct {
-	providers    map[string]Provider
-	stateStore   StateStore
-	sessionStore SessionStore
+	providers  map[string]Provider
+	stateStore StateStore
 }
 
 type Option func(*Registry)
 
 func WithStateStore(s StateStore) Option {
 	return func(r *Registry) { r.stateStore = s }
-}
-
-func WithSessionStore(s SessionStore) Option {
-	return func(r *Registry) { r.sessionStore = s }
 }
 
 func New(opts ...Option) *Registry {
@@ -138,44 +133,6 @@ func ProviderFromContext(ctx context.Context) string {
 func RawDataFromContext(ctx context.Context) RawData {
 	raw, _ := ctx.Value(rawDataContextKey{}).(RawData)
 	return raw
-}
-
-func (r *Registry) SaveSession(w http.ResponseWriter, req *http.Request) error {
-	if r.sessionStore == nil {
-		return errors.New("goauth: no SessionStore configured — use WithSessionStore()")
-	}
-	user, err := UserFromContext(req.Context())
-	if err != nil {
-		return err
-	}
-	return r.sessionStore.Save(w, user)
-}
-
-func (r *Registry) DeleteSession(w http.ResponseWriter, req *http.Request) error {
-	if r.sessionStore == nil {
-		return errors.New("goauth: no SessionStore configured — use WithSessionStore()")
-	}
-	return r.sessionStore.Delete(w, req)
-}
-
-func (r *Registry) LoadSessionMiddleware() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if r.sessionStore == nil {
-				next.ServeHTTP(w, req)
-				return
-			}
-
-			user, ok := r.sessionStore.Get(req)
-			if !ok {
-				next.ServeHTTP(w, req)
-				return
-			}
-
-			ctx := StoreUserInContext(req.Context(), user)
-			next.ServeHTTP(w, req.WithContext(ctx))
-		})
-	}
 }
 
 func (r *Registry) AuthRequired(next http.Handler) http.Handler {
