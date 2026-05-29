@@ -118,7 +118,7 @@ func UserFromContext(ctx context.Context) (User, error) {
 
 func CredentialsFromContext(ctx context.Context) (Credentials, error) {
 	r, ok := authResultFromContext(ctx)
-	if !ok {
+	if !ok || r.Credentials.AccessToken == "" {
 		return Credentials{}, errors.New("goauth: no credentials in context")
 	}
 	return r.Credentials, nil
@@ -131,8 +131,8 @@ func ProviderFromContext(ctx context.Context) string {
 
 func RawDataFromContext(ctx context.Context) (RawData, error) {
 	r, ok := authResultFromContext(ctx)
-	if !ok {
-		return nil, errors.New("goauth: no auth result in context")
+	if !ok || r.RawData == nil {
+		return nil, errors.New("goauth: no raw data in context")
 	}
 	return r.RawData, nil
 }
