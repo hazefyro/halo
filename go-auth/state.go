@@ -49,6 +49,7 @@ func (s *CookieStateStore) Generate(w http.ResponseWriter, r *http.Request) (str
 		HttpOnly: true,
 		Secure:   s.secure,
 		SameSite: http.SameSiteLaxMode,
+		MaxAge:   300, // 5 minutes — enough for any OAuth flow
 	})
 
 	return state, nil
