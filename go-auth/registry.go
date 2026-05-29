@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 )
 
 type contextKey struct{}
@@ -148,13 +147,6 @@ func (r *Registry) LoadSessionMiddleware() func(http.Handler) http.Handler {
 			if !ok {
 				next.ServeHTTP(w, req)
 				return
-			}
-
-			if cs, ok := r.sessionStore.(*CookieSessionStore); ok {
-				_, expiry, _ := cs.GetWithExpiry(req)
-				if time.Until(expiry) < time.Duration(cs.maxAge/2)*time.Second {
-					r.sessionStore.Save(w, user)
-				}
 			}
 
 			ctx := StoreUserInContext(req.Context(), user)
