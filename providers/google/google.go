@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	goauth "github.com/haze/go-auth"
-	"github.com/haze/go-auth/internal/maputil"
-	"github.com/haze/go-auth/internal/oauthutil"
-	"github.com/haze/go-auth/internal/provideropts"
+	goauth "github.com/hazefyro/auth"
+	"github.com/hazefyro/auth/internal/maputil"
+	"github.com/hazefyro/auth/internal/oauthutil"
+	"github.com/hazefyro/auth/internal/provideropts"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

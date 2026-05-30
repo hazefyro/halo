@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	session "github.com/haze/go-auth-session"
+	session "github.com/hazefyro/auth/session"
 )
 
 type Store struct {
