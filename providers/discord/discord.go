@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	goauth "github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/internal/maputil"
-	"github.com/hazefyro/auth/internal/oauthutil"
-	"github.com/hazefyro/auth/internal/provideropts"
+	goauth "github.com/hazefyro/go-auth"
+	"github.com/hazefyro/go-auth/internal/maputil"
+	"github.com/hazefyro/go-auth/internal/oauthutil"
+	"github.com/hazefyro/go-auth/internal/provideropts"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 )

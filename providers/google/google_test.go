@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	goauth "github.com/hazefyro/auth"
+	goauth "github.com/hazefyro/go-auth"
 	"golang.org/x/oauth2"
 )
 

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/hazefyro/auth/internal/randstate"
+	"github.com/hazefyro/go-auth/internal/randstate"
 )
 
 var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
