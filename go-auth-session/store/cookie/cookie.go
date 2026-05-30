@@ -48,5 +48,44 @@ func (s *Store) Encode(sess *session.Session) (string, error) {
 	return t.SignedString(s.cfg.SigningKey)
 }
 
+func (s *Store) Get(_ context.Context, id session.SessionID) (*session.Session, error) {
+	t, err := jwt.ParseWithClaims(id.String(), &Claims{}, s.keyFunc,
+		jwt.WithIssuer(s.cfg.Issuer),
+		jwt.WithExpirationRequired())
+
+	if err != nil || !t.Valid {
+		return nil, session.ErrInvalidSession
+	}
+
+	c, ok := t.Claims.(*Claims)
+	if !ok {
+		return nil, session.ErrInvalidSession
+	}
+
+	return &session.Session{
+		ID:         session.SessionID(c.ID),
+		UserID:     c.UserID,
+		CreatedAt:  time.Unix(c.CreatedAt, 0),
+		ExpiresAt:  c.ExpiresAt.Time,
+		LastSeenAt: time.Unix(c.LastSeenAt, 0),
+	}, nil
+}
+
+func (s *Store) TTL() time.Duration {
+	return s.cfg.TTL
+}
+
+func (s *Store) Touch(ctx context.Context, sess *session.Session, now time.Time) error {
+	sess.LastSeenAt = now
+	sess.ExpiresAt = now.Add(s.cfg.TTL)
+	return nil
+}
+
+func (s *Store) keyFunc(t *jwt.Token) (any, error) {
+	if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, session.ErrInvalidSession
+	}
+	return s.cfg.SigningKey, nil
+}
 
 var _ session.Store = (*Store)(nil)
