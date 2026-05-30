@@ -107,24 +107,24 @@ func (m *Manager) Delete(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (m *Manager) clearCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     m.cfg.CookieName,
-		Value:    "",
-		Path:     m.cfg.Path,
-		MaxAge:   -1,
-		Secure:   m.cfg.Secure,
-		HttpOnly: m.cfg.HttpOnly,
-		SameSite: m.cfg.SameSite,
-	})
-}
-
 func (m *Manager) setCookie(w http.ResponseWriter, value string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     m.cfg.CookieName,
 		Value:    value,
 		Path:     m.cfg.Path,
 		MaxAge:   int(m.store.TTL().Seconds()),
+		Secure:   m.cfg.Secure,
+		HttpOnly: m.cfg.HttpOnly,
+		SameSite: m.cfg.SameSite,
+	})
+}
+
+func (m *Manager) clearCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     m.cfg.CookieName,
+		Value:    "",
+		Path:     m.cfg.Path,
+		MaxAge:   -1,
 		Secure:   m.cfg.Secure,
 		HttpOnly: m.cfg.HttpOnly,
 		SameSite: m.cfg.SameSite,
