@@ -30,6 +30,15 @@ func New(opts ...Option) (*Store, error) {
 		cfg: c,
 	}, nil
 }
+
+func (s *Store) Save(ctx context.Context, session *session.Session) error {
+	return nil
+}
+
+func (s *Store) Delete(ctx context.Context, id session.SessionID) error {
+	return nil
+}
+
 func (s *Store) Encode(sess *session.Session) (string, error) {
 	c := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
