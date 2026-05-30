@@ -8,6 +8,10 @@ import (
 
 type SessionID string
 
+func (s SessionID) String() string {
+	return string(s)
+}
+
 type Session struct {
 	ID         SessionID
 	UserID     string
