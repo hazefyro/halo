@@ -6,7 +6,7 @@ import (
 )
 
 type Store interface {
-	Create(ctx context.Context, session *Session) error
+	Save(ctx context.Context, session *Session) error
 	Get(ctx context.Context, id SessionID) (*Session, error)
 	Touch(ctx context.Context, id SessionID, now time.Time) error
 	Delete(ctx context.Context, id SessionID) error
