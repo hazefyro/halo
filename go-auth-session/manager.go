@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 )
@@ -27,7 +28,26 @@ func New(store Store, opts ...Option) (*Manager, error) {
 	}, nil
 }
 
-func (m *Manager) LoadFromRequest(r *http.Request) (*Session, error) {
+func (m *Manager) Create(ctx context.Context, w http.ResponseWriter, userID string) (*Session, error) {
+	sess := &Session{
+		ID:         SessionID(generateID()),
+		UserID:     userID,
+		CreatedAt:  m.cfg.Now(),
+		ExpiresAt:  m.cfg.Now().Add(m.store.TTL()),
+		LastSeenAt: m.cfg.Now(),
+	}
+	if err := m.store.Save(ctx, sess); err != nil {
+		return nil, fmt.Errorf("session: create failed: %w", err)
+	}
+	v, err := m.store.Encode(sess)
+	if err != nil {
+		return nil, fmt.Errorf("session: create failed: %w", err)
+	}
+	m.setCookie(w, v)
+	return sess, nil
+}
+
+func (m *Manager) Load(r *http.Request) (*Session, error) {
 	c, err := r.Cookie(m.cfg.CookieName)
 	if err != nil {
 		return nil, ErrSessionNotFound
@@ -45,48 +65,6 @@ func (m *Manager) LoadFromRequest(r *http.Request) (*Session, error) {
 	return s, nil
 }
 
-func (m *Manager) SaveToResponse(w http.ResponseWriter, s *Session) error {
-	v, err := m.store.Encode(s)
-	if err != nil {
-		return fmt.Errorf("session: save failed: %w", err)
-	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     m.cfg.CookieName,
-		Value:    v,
-		Path:     m.cfg.Path,
-		MaxAge:   int(m.store.TTL().Seconds()),
-		Secure:   m.cfg.Secure,
-		HttpOnly: m.cfg.HttpOnly,
-		SameSite: m.cfg.SameSite,
-	})
-
-	return nil
-}
-
-func (m *Manager) DeleteFromResponse(w http.ResponseWriter, r *http.Request) error {
-	c, err := r.Cookie(m.cfg.CookieName)
-	if err != nil {
-		return nil
-	}
-
-	if err := m.store.Delete(r.Context(), SessionID(c.Value)); err != nil {
-		return fmt.Errorf("session: delete failed: %w", err)
-	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     m.cfg.CookieName,
-		Value:    "",
-		Path:     m.cfg.Path,
-		MaxAge:   -1,
-		Secure:   m.cfg.Secure,
-		HttpOnly: m.cfg.HttpOnly,
-		SameSite: m.cfg.SameSite,
-	})
-
-	return nil
-}
-
 func (m *Manager) Touch(w http.ResponseWriter, r *http.Request) error {
 	c, err := r.Cookie(m.cfg.CookieName)
 	if err != nil {
@@ -97,5 +75,53 @@ func (m *Manager) Touch(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("session: touch failed: %w", err)
 	}
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     m.cfg.CookieName,
+		Value:    c.Value,
+		Path:     m.cfg.Path,
+		MaxAge:   int(m.store.TTL().Seconds()),
+		Secure:   m.cfg.Secure,
+		HttpOnly: m.cfg.HttpOnly,
+		SameSite: m.cfg.SameSite,
+	})
 	return nil
+}
+
+func (m *Manager) Delete(w http.ResponseWriter, r *http.Request) error {
+	c, err := r.Cookie(m.cfg.CookieName)
+	if err != nil {
+		return nil
+	}
+
+	if err := m.store.Delete(r.Context(), SessionID(c.Value)); err != nil {
+		return fmt.Errorf("session: delete failed: %w", err)
+	}
+
+	m.clearCookie(w)
+
+	return nil
+}
+
+func (m *Manager) clearCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     m.cfg.CookieName,
+		Value:    "",
+		Path:     m.cfg.Path,
+		MaxAge:   -1,
+		Secure:   m.cfg.Secure,
+		HttpOnly: m.cfg.HttpOnly,
+		SameSite: m.cfg.SameSite,
+	})
+}
+
+func (m *Manager) setCookie(w http.ResponseWriter, value string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     m.cfg.CookieName,
+		Value:    value,
+		Path:     m.cfg.Path,
+		MaxAge:   int(m.store.TTL().Seconds()),
+		Secure:   m.cfg.Secure,
+		HttpOnly: m.cfg.HttpOnly,
+		SameSite: m.cfg.SameSite,
+	})
 }
