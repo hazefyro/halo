@@ -66,12 +66,17 @@ func (m *Manager) Load(r *http.Request) (*Session, error) {
 }
 
 func (m *Manager) Touch(w http.ResponseWriter, r *http.Request) error {
+	s, err := m.Load(r)
+	if err != nil {
+		return err
+	}
+
 	c, err := r.Cookie(m.cfg.CookieName)
 	if err != nil {
 		return ErrSessionNotFound
 	}
 
-	if err := m.store.Touch(r.Context(), SessionID(c.Value), m.cfg.Now()); err != nil {
+	if err := m.store.Touch(r.Context(), s, m.cfg.Now()); err != nil {
 		return fmt.Errorf("session: touch failed: %w", err)
 	}
 
