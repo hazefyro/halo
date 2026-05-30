@@ -1,4 +1,4 @@
-module github.com/hazefyro/go-auth
+module github.com/hazefyro/auth
 
 go 1.25.0
 

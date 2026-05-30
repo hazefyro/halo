@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	session "github.com/hazefyro/go-auth/session"
+	session "github.com/hazefyro/auth/session"
 )
 
 type Config struct {
