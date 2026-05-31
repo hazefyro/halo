@@ -1,15 +1,17 @@
-package goauth
+package auth_test
 
 import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/hazefyro/auth"
 )
 
 const testSecret = "0123456789abcdef0123456789abcdef"
 
-func storedCookie(t *testing.T, store *CookieStateStore, state, provider string) *http.Cookie {
+func storedCookie(t *testing.T, store *auth.CookieStateStore, state, provider string) *http.Cookie {
 	t.Helper()
 	w := httptest.NewRecorder()
 	if err := store.Store(w, httptest.NewRequest(http.MethodGet, "/", nil), state, provider); err != nil {
@@ -23,7 +25,7 @@ func storedCookie(t *testing.T, store *CookieStateStore, state, provider string)
 }
 
 func TestNewCookieStateStoreRejectsShortSecret(t *testing.T) {
-	store, err := NewCookieStateStore("short")
+	store, err := auth.NewCookieStateStore("short")
 	if err == nil {
 		t.Fatal("NewCookieStateStore() error = nil, want error")
 	}
@@ -33,7 +35,7 @@ func TestNewCookieStateStoreRejectsShortSecret(t *testing.T) {
 }
 
 func TestNewCookieStateStoreCreatesSecureStore(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -44,7 +46,7 @@ func TestNewCookieStateStoreCreatesSecureStore(t *testing.T) {
 }
 
 func TestNewInsecureCookieStateStoreRejectsShortSecret(t *testing.T) {
-	store, err := NewInsecureCookieStateStore("short")
+	store, err := auth.NewInsecureCookieStateStore("short")
 	if err == nil {
 		t.Fatal("NewInsecureCookieStateStore() error = nil, want error")
 	}
@@ -54,7 +56,7 @@ func TestNewInsecureCookieStateStoreRejectsShortSecret(t *testing.T) {
 }
 
 func TestNewInsecureCookieStateStoreCreatesInsecureStore(t *testing.T) {
-	store, err := NewInsecureCookieStateStore(testSecret)
+	store, err := auth.NewInsecureCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewInsecureCookieStateStore() error = %v", err)
 	}
@@ -65,7 +67,7 @@ func TestNewInsecureCookieStateStoreCreatesInsecureStore(t *testing.T) {
 }
 
 func TestCookieStateStoreStoreUsesProviderCookieName(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -76,7 +78,7 @@ func TestCookieStateStoreStoreUsesProviderCookieName(t *testing.T) {
 }
 
 func TestCookieStateStoreStoreSignsState(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -90,7 +92,7 @@ func TestCookieStateStoreStoreSignsState(t *testing.T) {
 }
 
 func TestCookieStateStoreStoreSetsCookieAttributes(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -101,7 +103,7 @@ func TestCookieStateStoreStoreSetsCookieAttributes(t *testing.T) {
 }
 
 func TestCookieStateStoreStoreSetsSecureFlag(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -111,7 +113,7 @@ func TestCookieStateStoreStoreSetsSecureFlag(t *testing.T) {
 }
 
 func TestCookieStateStoreStoreClearsSecureFlagForInsecureStore(t *testing.T) {
-	store, err := NewInsecureCookieStateStore(testSecret)
+	store, err := auth.NewInsecureCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewInsecureCookieStateStore() error = %v", err)
 	}
@@ -121,7 +123,7 @@ func TestCookieStateStoreStoreClearsSecureFlagForInsecureStore(t *testing.T) {
 }
 
 func TestCookieStateStoreVerifyAcceptsMatchingState(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -133,44 +135,44 @@ func TestCookieStateStoreVerifyAcceptsMatchingState(t *testing.T) {
 }
 
 func TestCookieStateStoreVerifyRejectsMissingCookie(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
 	err = store.Verify(httptest.NewRequest(http.MethodGet, "/", nil), "state", "google")
-	if !errors.Is(err, ErrStateMismatch) {
-		t.Fatalf("Verify() error = %v, want %v", err, ErrStateMismatch)
+	if !errors.Is(err, auth.ErrStateMismatch) {
+		t.Fatalf("Verify() error = %v, want %v", err, auth.ErrStateMismatch)
 	}
 }
 
 func TestCookieStateStoreVerifyRejectsWrongProvider(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(storedCookie(t, store, "state", "google"))
 	err = store.Verify(req, "state", "discord")
-	if !errors.Is(err, ErrStateMismatch) {
-		t.Fatalf("Verify() error = %v, want %v", err, ErrStateMismatch)
+	if !errors.Is(err, auth.ErrStateMismatch) {
+		t.Fatalf("Verify() error = %v, want %v", err, auth.ErrStateMismatch)
 	}
 }
 
 func TestCookieStateStoreVerifyRejectsWrongState(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(storedCookie(t, store, "state", "google"))
 	err = store.Verify(req, "other", "google")
-	if !errors.Is(err, ErrStateMismatch) {
-		t.Fatalf("Verify() error = %v, want %v", err, ErrStateMismatch)
+	if !errors.Is(err, auth.ErrStateMismatch) {
+		t.Fatalf("Verify() error = %v, want %v", err, auth.ErrStateMismatch)
 	}
 }
 
 func TestCookieStateStoreVerifyRejectsTamperedSignature(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -179,13 +181,13 @@ func TestCookieStateStoreVerifyRejectsTamperedSignature(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(cookie)
 	err = store.Verify(req, "state", "google")
-	if !errors.Is(err, ErrStateMismatch) {
-		t.Fatalf("Verify() error = %v, want %v", err, ErrStateMismatch)
+	if !errors.Is(err, auth.ErrStateMismatch) {
+		t.Fatalf("Verify() error = %v, want %v", err, auth.ErrStateMismatch)
 	}
 }
 
 func TestCookieStateStoreClearExpiresCookie(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
@@ -198,7 +200,7 @@ func TestCookieStateStoreClearExpiresCookie(t *testing.T) {
 }
 
 func TestCookieStateStoreClearPreservesCookieAttributes(t *testing.T) {
-	store, err := NewCookieStateStore(testSecret)
+	store, err := auth.NewCookieStateStore(testSecret)
 	if err != nil {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
