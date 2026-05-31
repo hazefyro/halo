@@ -1,4 +1,4 @@
-package oauthutil
+package oauthutil_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hazefyro/auth/internal/oauthutil"
 	"golang.org/x/oauth2"
 )
 
@@ -60,7 +61,7 @@ func newOAuthTestServer(t *testing.T, userInfoStatus int, userInfoBody string) (
 func TestFetchUserInfoExchangesCode(t *testing.T) {
 	server, cfg, tokenCalls, _ := newOAuthTestServer(t, http.StatusOK, `{"id":"123"}`)
 	defer server.Close()
-	if _, _, err := FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo"); err != nil {
+	if _, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo"); err != nil {
 		t.Fatalf("FetchUserInfo() error = %v", err)
 	}
 	if *tokenCalls != 1 {
@@ -71,7 +72,7 @@ func TestFetchUserInfoExchangesCode(t *testing.T) {
 func TestFetchUserInfoFetchesUserInfoWithTokenClient(t *testing.T) {
 	server, cfg, _, userInfoCalls := newOAuthTestServer(t, http.StatusOK, `{"id":"123"}`)
 	defer server.Close()
-	if _, _, err := FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo"); err != nil {
+	if _, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo"); err != nil {
 		t.Fatalf("FetchUserInfo() error = %v", err)
 	}
 	if *userInfoCalls != 1 {
@@ -82,7 +83,7 @@ func TestFetchUserInfoFetchesUserInfoWithTokenClient(t *testing.T) {
 func TestFetchUserInfoReturnsExchangeError(t *testing.T) {
 	server, cfg, _, _ := newOAuthTestServer(t, http.StatusOK, `{"id":"123"}`)
 	defer server.Close()
-	_, _, err := FetchUserInfo(context.Background(), cfg, "bad-exchange", server.URL+"/userinfo")
+	_, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "bad-exchange", server.URL+"/userinfo")
 	if err == nil {
 		t.Fatal("FetchUserInfo() error = nil, want error")
 	}
@@ -90,7 +91,7 @@ func TestFetchUserInfoReturnsExchangeError(t *testing.T) {
 
 func TestFetchUserInfoReturnsHTTPError(t *testing.T) {
 	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: "http://127.0.0.1:1/token"}}
-	_, _, err := FetchUserInfo(context.Background(), cfg, "ok", "http://127.0.0.1:1/userinfo")
+	_, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", "http://127.0.0.1:1/userinfo")
 	if err == nil {
 		t.Fatal("FetchUserInfo() error = nil, want error")
 	}
@@ -99,7 +100,7 @@ func TestFetchUserInfoReturnsHTTPError(t *testing.T) {
 func TestFetchUserInfoReturnsNon2xxError(t *testing.T) {
 	server, cfg, _, _ := newOAuthTestServer(t, http.StatusTeapot, `nope`)
 	defer server.Close()
-	_, _, err := FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
+	_, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
 	if err == nil || !strings.Contains(err.Error(), "status 418") {
 		t.Fatalf("FetchUserInfo() error = %v, want status 418", err)
 	}
@@ -108,7 +109,7 @@ func TestFetchUserInfoReturnsNon2xxError(t *testing.T) {
 func TestFetchUserInfoUsesJSONNumber(t *testing.T) {
 	server, cfg, _, _ := newOAuthTestServer(t, http.StatusOK, `{"id":12345678901234567890}`)
 	defer server.Close()
-	raw, _, err := FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
+	raw, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
 	if err != nil {
 		t.Fatalf("FetchUserInfo() error = %v", err)
 	}
@@ -120,7 +121,7 @@ func TestFetchUserInfoUsesJSONNumber(t *testing.T) {
 func TestFetchUserInfoReturnsInvalidJSONError(t *testing.T) {
 	server, cfg, _, _ := newOAuthTestServer(t, http.StatusOK, `{`)
 	defer server.Close()
-	_, _, err := FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
+	_, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
 	if err == nil {
 		t.Fatal("FetchUserInfo() error = nil, want error")
 	}
@@ -129,7 +130,7 @@ func TestFetchUserInfoReturnsInvalidJSONError(t *testing.T) {
 func TestFetchUserInfoLimitsResponseBody(t *testing.T) {
 	server, cfg, _, _ := newOAuthTestServer(t, http.StatusOK, `{"payload":"`+strings.Repeat("x", 1<<20)+`"}`)
 	defer server.Close()
-	_, _, err := FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
+	_, _, err := oauthutil.FetchUserInfo(context.Background(), cfg, "ok", server.URL+"/userinfo")
 	if err == nil {
 		t.Fatal("FetchUserInfo() error = nil, want error")
 	}
@@ -142,7 +143,7 @@ func TestRefreshTokenReturnsCredentials(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: server.URL}}
-	got, err := RefreshToken(context.Background(), cfg, "old-refresh")
+	got, err := oauthutil.RefreshToken(context.Background(), cfg, "old-refresh")
 	if err != nil {
 		t.Fatalf("RefreshToken() error = %v", err)
 	}
@@ -158,7 +159,7 @@ func TestRefreshTokenKeepsOldRefreshToken(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: server.URL}}
-	got, err := RefreshToken(context.Background(), cfg, "old-refresh")
+	got, err := oauthutil.RefreshToken(context.Background(), cfg, "old-refresh")
 	if err != nil {
 		t.Fatalf("RefreshToken() error = %v", err)
 	}
@@ -173,7 +174,7 @@ func TestRefreshTokenReturnsTokenSourceError(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: server.URL}}
-	_, err := RefreshToken(context.Background(), cfg, "old-refresh")
+	_, err := oauthutil.RefreshToken(context.Background(), cfg, "old-refresh")
 	if err == nil {
 		t.Fatal("RefreshToken() error = nil, want error")
 	}

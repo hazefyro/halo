@@ -1,18 +1,36 @@
-package discord
+package discord_test
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	goauth "github.com/hazefyro/auth"
+	"github.com/hazefyro/auth/providers/discord"
 	"golang.org/x/oauth2"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func jsonResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Status:     http.StatusText(status),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
 
 func newDiscordOAuthServer(t *testing.T, userInfoStatus int, userInfoBody string) (*httptest.Server, oauth2.Endpoint) {
 	t.Helper()
@@ -45,74 +63,106 @@ func newDiscordOAuthServer(t *testing.T, userInfoStatus int, userInfoBody string
 	return server, oauth2.Endpoint{AuthURL: server.URL + "/auth", TokenURL: server.URL + "/token"}
 }
 
-func newDiscordTestProvider(t *testing.T, body string, opts ...Option) (*Provider, *httptest.Server) {
+func newDiscordTestProvider(t *testing.T, body string, opts ...discord.Option) (*discord.Provider, *httptest.Server) {
 	t.Helper()
 	server, endpoint := newDiscordOAuthServer(t, http.StatusOK, body)
-	allOpts := append([]Option{WithEndpoint(endpoint), WithUserInfoURL(server.URL + "/userinfo"), WithHTTPClient(server.Client())}, opts...)
-	return New("client-id", "client-secret", "http://example.com/callback", allOpts...), server
+	allOpts := append([]discord.Option{discord.WithEndpoint(endpoint), discord.WithUserInfoURL(server.URL + "/userinfo"), discord.WithHTTPClient(server.Client())}, opts...)
+	return discord.New("client-id", "client-secret", "http://example.com/callback", allOpts...), server
+}
+
+func queryFromBeginAuth(t *testing.T, p *discord.Provider) url.Values {
+	t.Helper()
+	authURL, err := p.BeginAuth("state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	return parsed.Query()
 }
 
 func TestDiscordNewDefaultScopes(t *testing.T) {
-	p := New("id", "secret", "redirect")
+	p := discord.New("id", "secret", "redirect")
 	want := []string{"identify", "email"}
-	if !reflect.DeepEqual(p.config.Scopes, want) {
-		t.Fatalf("Scopes = %#v, want %#v", p.config.Scopes, want)
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Scopes = %#v, want %#v", got, want)
 	}
 }
 
 func TestDiscordNewWithScopes(t *testing.T) {
-	p := New("id", "secret", "redirect", WithScopes("custom"))
-	if !reflect.DeepEqual(p.config.Scopes, []string{"custom"}) {
-		t.Fatalf("Scopes = %#v", p.config.Scopes)
+	p := discord.New("id", "secret", "redirect", discord.WithScopes("custom"))
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, []string{"custom"}) {
+		t.Fatalf("Scopes = %#v", got)
 	}
 }
 
 func TestDiscordNewWithAdditionalScopes(t *testing.T) {
-	p := New("id", "secret", "redirect", WithAdditionalScopes("guilds"))
+	p := discord.New("id", "secret", "redirect", discord.WithAdditionalScopes("guilds"))
 	want := []string{"identify", "email", "guilds"}
-	if !reflect.DeepEqual(p.config.Scopes, want) {
-		t.Fatalf("Scopes = %#v, want %#v", p.config.Scopes, want)
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Scopes = %#v, want %#v", got, want)
 	}
 }
 
 func TestDiscordNewWithEndpoint(t *testing.T) {
 	endpoint := oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}
-	p := New("id", "secret", "redirect", WithEndpoint(endpoint))
-	if p.config.Endpoint != endpoint {
-		t.Fatalf("Endpoint = %#v, want %#v", p.config.Endpoint, endpoint)
+	p := discord.New("id", "secret", "redirect", discord.WithEndpoint(endpoint))
+	authURL, err := p.BeginAuth("state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	if !strings.HasPrefix(authURL, endpoint.AuthURL+"?") {
+		t.Fatalf("auth URL = %q, want endpoint %q", authURL, endpoint.AuthURL)
 	}
 }
 
 func TestDiscordNewWithUserInfoURL(t *testing.T) {
-	p := New("id", "secret", "redirect", WithUserInfoURL("https://example.com/userinfo"))
-	if p.userInfoURL != "https://example.com/userinfo" {
-		t.Fatalf("userInfoURL = %q", p.userInfoURL)
+	server, endpoint := newDiscordOAuthServer(t, http.StatusOK, `{"id":"123"}`)
+	defer server.Close()
+	p := discord.New("id", "secret", "redirect", discord.WithEndpoint(endpoint), discord.WithUserInfoURL(server.URL+"/userinfo"), discord.WithHTTPClient(server.Client()))
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
 
 func TestDiscordNewWithHTTPClient(t *testing.T) {
-	client := &http.Client{}
-	p := New("id", "secret", "redirect", WithHTTPClient(client))
-	if p.httpClient != client {
-		t.Fatal("HTTPClient was not stored")
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/token":
+			return jsonResponse(http.StatusOK, `{"access_token":"access-token","token_type":"Bearer","expires_in":3600}`), nil
+		case "/userinfo":
+			return jsonResponse(http.StatusOK, `{"id":"123"}`), nil
+		default:
+			return jsonResponse(http.StatusNotFound, `{}`), nil
+		}
+	})}
+	p := discord.New("id", "secret", "redirect",
+		discord.WithEndpoint(oauth2.Endpoint{AuthURL: "http://oauth.test/auth", TokenURL: "http://oauth.test/token"}),
+		discord.WithUserInfoURL("http://oauth.test/userinfo"),
+		discord.WithHTTPClient(client),
+	)
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
 
 func TestDiscordNewWithAuthCodeOptions(t *testing.T) {
-	p := New("id", "secret", "redirect", WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "none")))
-	if len(p.authCodeOptions) != 1 {
-		t.Fatalf("authCodeOptions len = %d, want 1", len(p.authCodeOptions))
+	p := discord.New("id", "secret", "redirect", discord.WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "none")))
+	if got := queryFromBeginAuth(t, p).Get("prompt"); got != "none" {
+		t.Fatalf("prompt = %q, want none", got)
 	}
 }
 
 func TestDiscordName(t *testing.T) {
-	if got := New("id", "secret", "redirect").Name(); got != "discord" {
+	if got := discord.New("id", "secret", "redirect").Name(); got != "discord" {
 		t.Fatalf("Name() = %q, want discord", got)
 	}
 }
 
 func TestDiscordBeginAuthIncludesState(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback", WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
+	p := discord.New("id", "secret", "http://example.com/callback", discord.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
@@ -127,9 +177,9 @@ func TestDiscordBeginAuthIncludesState(t *testing.T) {
 }
 
 func TestDiscordBeginAuthIncludesCustomOptions(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback",
-		WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
-		WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "none")),
+	p := discord.New("id", "secret", "http://example.com/callback",
+		discord.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
+		discord.WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "none")),
 	)
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
@@ -145,7 +195,7 @@ func TestDiscordBeginAuthIncludesCustomOptions(t *testing.T) {
 }
 
 func TestDiscordCompleteAuthRequiresCode(t *testing.T) {
-	p := New("id", "secret", "redirect")
+	p := discord.New("id", "secret", "redirect")
 	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil))
 	if !errors.Is(err, goauth.ErrMissingCode) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, goauth.ErrMissingCode)

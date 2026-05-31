@@ -1,4 +1,4 @@
-package goauth
+package auth_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/hazefyro/auth"
 )
 
 type fakeProvider struct {
@@ -16,7 +18,7 @@ type fakeProvider struct {
 	beginErr       error
 	completeCalled bool
 	completeErr    error
-	result         AuthResult
+	result         auth.AuthResult
 }
 
 func (p *fakeProvider) Name() string { return p.name }
@@ -32,18 +34,18 @@ func (p *fakeProvider) BeginAuth(state string) (string, error) {
 	return "/provider/auth?state=" + state, nil
 }
 
-func (p *fakeProvider) CompleteAuth(r *http.Request) (AuthResult, error) {
+func (p *fakeProvider) CompleteAuth(r *http.Request) (auth.AuthResult, error) {
 	p.completeCalled = true
 	if p.completeErr != nil {
-		return AuthResult{}, p.completeErr
+		return auth.AuthResult{}, p.completeErr
 	}
 	if p.result.Identity.ID != "" {
 		return p.result, nil
 	}
-	return AuthResult{
-		Identity:    Identity{ID: "user-1", Provider: p.name},
-		Credentials: Credentials{AccessToken: "access-token"},
-		RawData:     RawData{"id": "user-1"},
+	return auth.AuthResult{
+		Identity:    auth.Identity{ID: "user-1", Provider: p.name},
+		Credentials: auth.Credentials{AccessToken: "access-token"},
+		RawData:     auth.RawData{"id": "user-1"},
 	}, nil
 }
 
@@ -73,9 +75,9 @@ func (s *fakeStateStore) Clear(w http.ResponseWriter, provider string) {
 	s.clearProvider = provider
 }
 
-func newTestRegistry(t *testing.T, p *fakeProvider, s *fakeStateStore) *Registry {
+func newTestRegistry(t *testing.T, p *fakeProvider, s *fakeStateStore) *auth.Registry {
 	t.Helper()
-	r, err := New(WithStateStore(s))
+	r, err := auth.New(auth.WithStateStore(s))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -86,7 +88,7 @@ func newTestRegistry(t *testing.T, p *fakeProvider, s *fakeStateStore) *Registry
 }
 
 func TestNewRequiresStateStore(t *testing.T) {
-	r, err := New()
+	r, err := auth.New()
 	if err == nil {
 		t.Fatal("New() error = nil, want error")
 	}
@@ -97,17 +99,23 @@ func TestNewRequiresStateStore(t *testing.T) {
 
 func TestNewWithStateStore(t *testing.T) {
 	store := &fakeStateStore{}
-	r, err := New(WithStateStore(store))
+	r, err := auth.New(auth.WithStateStore(store))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	if r.stateStore != store {
-		t.Fatal("New() did not store provided StateStore")
+	if err := r.Register(&fakeProvider{name: "google"}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if err := r.BeginAuth(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), "google"); err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	if store.storeProvider != "google" {
+		t.Fatal("New() did not use provided StateStore")
 	}
 }
 
 func TestRegisterAcceptsValidProviderNames(t *testing.T) {
-	r, err := New(WithStateStore(&fakeStateStore{}))
+	r, err := auth.New(auth.WithStateStore(&fakeStateStore{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -120,7 +128,7 @@ func TestRegisterAcceptsValidProviderNames(t *testing.T) {
 
 func TestRegisterRejectsInvalidProviderNames(t *testing.T) {
 	for _, name := range []string{"", "bad name", "bad/name", "bad.name"} {
-		r, err := New(WithStateStore(&fakeStateStore{}))
+		r, err := auth.New(auth.WithStateStore(&fakeStateStore{}))
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -131,7 +139,7 @@ func TestRegisterRejectsInvalidProviderNames(t *testing.T) {
 }
 
 func TestRegisterRejectsDuplicateProviders(t *testing.T) {
-	r, err := New(WithStateStore(&fakeStateStore{}))
+	r, err := auth.New(auth.WithStateStore(&fakeStateStore{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -156,24 +164,24 @@ func TestGetReturnsRegisteredProvider(t *testing.T) {
 }
 
 func TestGetReturnsErrProviderNotFound(t *testing.T) {
-	r, err := New(WithStateStore(&fakeStateStore{}))
+	r, err := auth.New(auth.WithStateStore(&fakeStateStore{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	_, err = r.Get("missing")
-	if !errors.Is(err, ErrProviderNotFound) {
-		t.Fatalf("Get() error = %v, want %v", err, ErrProviderNotFound)
+	if !errors.Is(err, auth.ErrProviderNotFound) {
+		t.Fatalf("Get() error = %v, want %v", err, auth.ErrProviderNotFound)
 	}
 }
 
 func TestBeginAuthReturnsErrProviderNotFound(t *testing.T) {
-	r, err := New(WithStateStore(&fakeStateStore{}))
+	r, err := auth.New(auth.WithStateStore(&fakeStateStore{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	err = r.BeginAuth(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), "missing")
-	if !errors.Is(err, ErrProviderNotFound) {
-		t.Fatalf("BeginAuth() error = %v, want %v", err, ErrProviderNotFound)
+	if !errors.Is(err, auth.ErrProviderNotFound) {
+		t.Fatalf("BeginAuth() error = %v, want %v", err, auth.ErrProviderNotFound)
 	}
 }
 
@@ -259,13 +267,13 @@ func TestCallbackRequiresNextHandler(t *testing.T) {
 }
 
 func TestCallbackReturnsErrProviderNotFound(t *testing.T) {
-	r, err := New(WithStateStore(&fakeStateStore{}))
+	r, err := auth.New(auth.WithStateStore(&fakeStateStore{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	err = r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback", nil), "missing", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	if !errors.Is(err, ErrProviderNotFound) {
-		t.Fatalf("Callback() error = %v, want %v", err, ErrProviderNotFound)
+	if !errors.Is(err, auth.ErrProviderNotFound) {
+		t.Fatalf("Callback() error = %v, want %v", err, auth.ErrProviderNotFound)
 	}
 }
 
@@ -273,7 +281,7 @@ func TestCallbackReturnsCallbackErrorFromQuery(t *testing.T) {
 	r := newTestRegistry(t, &fakeProvider{name: "google"}, &fakeStateStore{})
 	req := httptest.NewRequest(http.MethodGet, "/callback?error=access_denied&error_description=nope", nil)
 	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	var callbackErr *CallbackError
+	var callbackErr *auth.CallbackError
 	if !errors.As(err, &callbackErr) {
 		t.Fatalf("Callback() error = %T, want *CallbackError", err)
 	}
@@ -301,12 +309,12 @@ func TestCallbackVerifiesStateBeforeCompleteAuth(t *testing.T) {
 
 func TestCallbackReturnsErrStateMismatch(t *testing.T) {
 	p := &fakeProvider{name: "google"}
-	store := &fakeStateStore{verifyErr: ErrStateMismatch}
+	store := &fakeStateStore{verifyErr: auth.ErrStateMismatch}
 	r := newTestRegistry(t, p, store)
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=bad&code=ok", nil)
 	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	if !errors.Is(err, ErrStateMismatch) {
-		t.Fatalf("Callback() error = %v, want %v", err, ErrStateMismatch)
+	if !errors.Is(err, auth.ErrStateMismatch) {
+		t.Fatalf("Callback() error = %v, want %v", err, auth.ErrStateMismatch)
 	}
 	if p.completeCalled {
 		t.Fatal("CompleteAuth called after state mismatch")
@@ -357,10 +365,10 @@ func TestCallbackReturnsCompleteAuthError(t *testing.T) {
 }
 
 func TestCallbackStoresAuthResultInContext(t *testing.T) {
-	result := AuthResult{
-		Identity:    Identity{ID: "user-1", Provider: "google"},
-		Credentials: Credentials{AccessToken: "access-token"},
-		RawData:     RawData{"id": "user-1"},
+	result := auth.AuthResult{
+		Identity:    auth.Identity{ID: "user-1", Provider: "google"},
+		Credentials: auth.Credentials{AccessToken: "access-token"},
+		RawData:     auth.RawData{"id": "user-1"},
 	}
 	p := &fakeProvider{name: "google", result: result}
 	r := newTestRegistry(t, p, &fakeStateStore{})
@@ -368,12 +376,20 @@ func TestCallbackStoresAuthResultInContext(t *testing.T) {
 	nextCalled := false
 	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		got, ok := authResultFromContext(r.Context())
-		if !ok {
-			t.Fatal("missing auth result in context")
+		identity, err := auth.IdentityFromContext(r.Context())
+		if err != nil {
+			t.Fatalf("IdentityFromContext() error = %v", err)
 		}
-		if got.Identity.ID != result.Identity.ID || got.Credentials.AccessToken != result.Credentials.AccessToken {
-			t.Fatalf("auth result = %#v, want %#v", got, result)
+		credentials, err := auth.CredentialsFromContext(r.Context())
+		if err != nil {
+			t.Fatalf("CredentialsFromContext() error = %v", err)
+		}
+		raw, err := auth.RawDataFromContext(r.Context())
+		if err != nil {
+			t.Fatalf("RawDataFromContext() error = %v", err)
+		}
+		if identity.ID != result.Identity.ID || credentials.AccessToken != result.Credentials.AccessToken || raw["id"] != result.RawData["id"] {
+			t.Fatalf("auth result accessors returned identity=%#v credentials=%#v raw=%#v", identity, credentials, raw)
 		}
 	}))
 	if err != nil {
@@ -385,15 +401,15 @@ func TestCallbackStoresAuthResultInContext(t *testing.T) {
 }
 
 func TestIdentityFromContextMissing(t *testing.T) {
-	_, err := IdentityFromContext(context.Background())
+	_, err := auth.IdentityFromContext(context.Background())
 	if err == nil {
 		t.Fatal("IdentityFromContext() error = nil, want error")
 	}
 }
 
 func TestIdentityFromContextReturnsIdentity(t *testing.T) {
-	ctx := context.WithValue(context.Background(), authResultKey{}, AuthResult{Identity: Identity{ID: "user-1"}})
-	got, err := IdentityFromContext(ctx)
+	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{ID: "user-1"})
+	got, err := auth.IdentityFromContext(ctx)
 	if err != nil {
 		t.Fatalf("IdentityFromContext() error = %v", err)
 	}
@@ -403,78 +419,98 @@ func TestIdentityFromContextReturnsIdentity(t *testing.T) {
 }
 
 func TestStoreIdentityInContext(t *testing.T) {
-	ctx := StoreIdentityInContext(context.Background(), Identity{ID: "user-1", Provider: "google"})
-	got, err := IdentityFromContext(ctx)
+	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{ID: "user-1", Provider: "google"})
+	got, err := auth.IdentityFromContext(ctx)
 	if err != nil {
 		t.Fatalf("IdentityFromContext() error = %v", err)
 	}
 	if got.ID != "user-1" || got.Provider != "google" {
 		t.Fatalf("identity = %#v", got)
 	}
-	if _, err := CredentialsFromContext(ctx); err == nil {
+	if _, err := auth.CredentialsFromContext(ctx); err == nil {
 		t.Fatal("CredentialsFromContext() error = nil, want error")
 	}
 }
 
 func TestCredentialsFromContextMissing(t *testing.T) {
-	_, err := CredentialsFromContext(context.Background())
+	_, err := auth.CredentialsFromContext(context.Background())
 	if err == nil {
 		t.Fatal("CredentialsFromContext() error = nil, want error")
 	}
 }
 
 func TestCredentialsFromContextEmptyAccessToken(t *testing.T) {
-	ctx := context.WithValue(context.Background(), authResultKey{}, AuthResult{Credentials: Credentials{RefreshToken: "refresh"}})
-	_, err := CredentialsFromContext(ctx)
+	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{ID: "user-1"})
+	_, err := auth.CredentialsFromContext(ctx)
 	if err == nil {
 		t.Fatal("CredentialsFromContext() error = nil, want error")
 	}
 }
 
 func TestCredentialsFromContextReturnsCredentials(t *testing.T) {
-	ctx := context.WithValue(context.Background(), authResultKey{}, AuthResult{Credentials: Credentials{AccessToken: "access"}})
-	got, err := CredentialsFromContext(ctx)
-	if err != nil {
-		t.Fatalf("CredentialsFromContext() error = %v", err)
+	result := auth.AuthResult{
+		Identity:    auth.Identity{ID: "user-1"},
+		Credentials: auth.Credentials{AccessToken: "access"},
 	}
-	if got.AccessToken != "access" {
-		t.Fatalf("access token = %q, want access", got.AccessToken)
+	p := &fakeProvider{name: "google", result: result}
+	r := newTestRegistry(t, p, &fakeStateStore{})
+	err := r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil), "google", http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got, err := auth.CredentialsFromContext(r.Context())
+		if err != nil {
+			t.Fatalf("CredentialsFromContext() error = %v", err)
+		}
+		if got.AccessToken != "access" {
+			t.Fatalf("access token = %q, want access", got.AccessToken)
+		}
+	}))
+	if err != nil {
+		t.Fatalf("Callback() error = %v", err)
 	}
 }
 
 func TestProviderFromContextReturnsProvider(t *testing.T) {
-	ctx := StoreIdentityInContext(context.Background(), Identity{Provider: "google"})
-	if got := ProviderFromContext(ctx); got != "google" {
+	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{Provider: "google"})
+	if got := auth.ProviderFromContext(ctx); got != "google" {
 		t.Fatalf("ProviderFromContext() = %q, want google", got)
 	}
 }
 
 func TestProviderFromContextMissing(t *testing.T) {
-	if got := ProviderFromContext(context.Background()); got != "" {
+	if got := auth.ProviderFromContext(context.Background()); got != "" {
 		t.Fatalf("ProviderFromContext() = %q, want empty", got)
 	}
 }
 
 func TestRawDataFromContextMissing(t *testing.T) {
-	_, err := RawDataFromContext(context.Background())
+	_, err := auth.RawDataFromContext(context.Background())
 	if err == nil {
 		t.Fatal("RawDataFromContext() error = nil, want error")
 	}
 }
 
 func TestRawDataFromContextReturnsRawData(t *testing.T) {
-	ctx := context.WithValue(context.Background(), authResultKey{}, AuthResult{RawData: RawData{"id": "user-1"}})
-	got, err := RawDataFromContext(ctx)
-	if err != nil {
-		t.Fatalf("RawDataFromContext() error = %v", err)
+	result := auth.AuthResult{
+		Identity: auth.Identity{ID: "user-1"},
+		RawData:  auth.RawData{"id": "user-1"},
 	}
-	if got["id"] != "user-1" {
-		t.Fatalf("raw id = %v, want user-1", got["id"])
+	p := &fakeProvider{name: "google", result: result}
+	r := newTestRegistry(t, p, &fakeStateStore{})
+	err := r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil), "google", http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got, err := auth.RawDataFromContext(r.Context())
+		if err != nil {
+			t.Fatalf("RawDataFromContext() error = %v", err)
+		}
+		if got["id"] != "user-1" {
+			t.Fatalf("raw id = %v, want user-1", got["id"])
+		}
+	}))
+	if err != nil {
+		t.Fatalf("Callback() error = %v", err)
 	}
 }
 
 func TestAuthRequiredUnauthorized(t *testing.T) {
-	r := &Registry{}
+	r := &auth.Registry{}
 	w := httptest.NewRecorder()
 	r.AuthRequired(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("next handler called")
@@ -488,9 +524,9 @@ func TestAuthRequiredUnauthorized(t *testing.T) {
 }
 
 func TestAuthRequiredAllowsAuthenticatedRequest(t *testing.T) {
-	r := &Registry{}
+	r := &auth.Registry{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req = req.WithContext(StoreIdentityInContext(req.Context(), Identity{ID: "user-1"}))
+	req = req.WithContext(auth.StoreIdentityInContext(req.Context(), auth.Identity{ID: "user-1"}))
 	nextCalled := false
 	r.AuthRequired(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		nextCalled = true
@@ -501,7 +537,7 @@ func TestAuthRequiredAllowsAuthenticatedRequest(t *testing.T) {
 }
 
 func TestCallbackErrorErrorWithDescription(t *testing.T) {
-	err := (&CallbackError{Code: "access_denied", Description: "nope"}).Error()
+	err := (&auth.CallbackError{Code: "access_denied", Description: "nope"}).Error()
 	want := "oauth callback error: access_denied: nope"
 	if err != want {
 		t.Fatalf("Error() = %q, want %q", err, want)
@@ -509,7 +545,7 @@ func TestCallbackErrorErrorWithDescription(t *testing.T) {
 }
 
 func TestCallbackErrorErrorWithoutDescription(t *testing.T) {
-	err := (&CallbackError{Code: "access_denied"}).Error()
+	err := (&auth.CallbackError{Code: "access_denied"}).Error()
 	want := "oauth callback error: access_denied"
 	if err != want {
 		t.Fatalf("Error() = %q, want %q", err, want)
@@ -531,7 +567,7 @@ func TestRegistryOAuthFlow(t *testing.T) {
 	nextCalled := false
 	err := r.Callback(httptest.NewRecorder(), callbackReq, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		if _, err := IdentityFromContext(r.Context()); err != nil {
+		if _, err := auth.IdentityFromContext(r.Context()); err != nil {
 			t.Fatalf("IdentityFromContext() error = %v", err)
 		}
 	}))

@@ -1,4 +1,4 @@
-package github
+package github_test
 
 import (
 	"bytes"
@@ -9,11 +9,28 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	goauth "github.com/hazefyro/auth"
+	"github.com/hazefyro/auth/providers/github"
 	"golang.org/x/oauth2"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func jsonResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Status:     http.StatusText(status),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
 
 type githubEmailTransport struct {
 	base       http.RoundTripper
@@ -70,77 +87,109 @@ func newGitHubOAuthServer(t *testing.T, userInfoStatus int, userInfoBody string)
 	return server, oauth2.Endpoint{AuthURL: server.URL + "/auth", TokenURL: server.URL + "/token"}
 }
 
-func newGitHubTestProvider(t *testing.T, userInfoBody, emailBody string, emailStatus int, opts ...Option) (*Provider, *httptest.Server, *githubEmailTransport) {
+func newGitHubTestProvider(t *testing.T, userInfoBody, emailBody string, emailStatus int, opts ...github.Option) (*github.Provider, *httptest.Server, *githubEmailTransport) {
 	t.Helper()
 	server, endpoint := newGitHubOAuthServer(t, http.StatusOK, userInfoBody)
 	emailTransport := &githubEmailTransport{base: server.Client().Transport, status: emailStatus, body: emailBody}
 	client := server.Client()
 	client.Transport = emailTransport
-	allOpts := append([]Option{WithEndpoint(endpoint), WithUserInfoURL(server.URL + "/userinfo"), WithHTTPClient(client)}, opts...)
-	return New("client-id", "client-secret", "http://example.com/callback", allOpts...), server, emailTransport
+	allOpts := append([]github.Option{github.WithEndpoint(endpoint), github.WithUserInfoURL(server.URL + "/userinfo"), github.WithHTTPClient(client)}, opts...)
+	return github.New("client-id", "client-secret", "http://example.com/callback", allOpts...), server, emailTransport
+}
+
+func queryFromBeginAuth(t *testing.T, p *github.Provider) url.Values {
+	t.Helper()
+	authURL, err := p.BeginAuth("state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	return parsed.Query()
 }
 
 func TestGitHubNewDefaultScopes(t *testing.T) {
-	p := New("id", "secret", "redirect")
+	p := github.New("id", "secret", "redirect")
 	want := []string{"read:user", "user:email"}
-	if !reflect.DeepEqual(p.config.Scopes, want) {
-		t.Fatalf("Scopes = %#v, want %#v", p.config.Scopes, want)
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Scopes = %#v, want %#v", got, want)
 	}
 }
 
 func TestGitHubNewWithScopes(t *testing.T) {
-	p := New("id", "secret", "redirect", WithScopes("custom"))
-	if !reflect.DeepEqual(p.config.Scopes, []string{"custom"}) {
-		t.Fatalf("Scopes = %#v", p.config.Scopes)
+	p := github.New("id", "secret", "redirect", github.WithScopes("custom"))
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, []string{"custom"}) {
+		t.Fatalf("Scopes = %#v", got)
 	}
 }
 
 func TestGitHubNewWithAdditionalScopes(t *testing.T) {
-	p := New("id", "secret", "redirect", WithAdditionalScopes("repo"))
+	p := github.New("id", "secret", "redirect", github.WithAdditionalScopes("repo"))
 	want := []string{"read:user", "user:email", "repo"}
-	if !reflect.DeepEqual(p.config.Scopes, want) {
-		t.Fatalf("Scopes = %#v, want %#v", p.config.Scopes, want)
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Scopes = %#v, want %#v", got, want)
 	}
 }
 
 func TestGitHubNewWithEndpoint(t *testing.T) {
 	endpoint := oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}
-	p := New("id", "secret", "redirect", WithEndpoint(endpoint))
-	if p.config.Endpoint != endpoint {
-		t.Fatalf("Endpoint = %#v, want %#v", p.config.Endpoint, endpoint)
+	p := github.New("id", "secret", "redirect", github.WithEndpoint(endpoint))
+	authURL, err := p.BeginAuth("state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	if !strings.HasPrefix(authURL, endpoint.AuthURL+"?") {
+		t.Fatalf("auth URL = %q, want endpoint %q", authURL, endpoint.AuthURL)
 	}
 }
 
 func TestGitHubNewWithUserInfoURL(t *testing.T) {
-	p := New("id", "secret", "redirect", WithUserInfoURL("https://example.com/userinfo"))
-	if p.userInfoURL != "https://example.com/userinfo" {
-		t.Fatalf("userInfoURL = %q", p.userInfoURL)
+	server, endpoint := newGitHubOAuthServer(t, http.StatusOK, `{"id":123,"email":"user@example.com"}`)
+	defer server.Close()
+	p := github.New("id", "secret", "redirect", github.WithEndpoint(endpoint), github.WithUserInfoURL(server.URL+"/userinfo"), github.WithHTTPClient(server.Client()))
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
 
 func TestGitHubNewWithHTTPClient(t *testing.T) {
-	client := &http.Client{}
-	p := New("id", "secret", "redirect", WithHTTPClient(client))
-	if p.httpClient != client {
-		t.Fatal("HTTPClient was not stored")
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/token":
+			return jsonResponse(http.StatusOK, `{"access_token":"access-token","token_type":"Bearer","expires_in":3600}`), nil
+		case "/userinfo":
+			return jsonResponse(http.StatusOK, `{"id":123,"email":"user@example.com"}`), nil
+		default:
+			return jsonResponse(http.StatusNotFound, `{}`), nil
+		}
+	})}
+	p := github.New("id", "secret", "redirect",
+		github.WithEndpoint(oauth2.Endpoint{AuthURL: "http://oauth.test/auth", TokenURL: "http://oauth.test/token"}),
+		github.WithUserInfoURL("http://oauth.test/userinfo"),
+		github.WithHTTPClient(client),
+	)
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
 
 func TestGitHubNewWithAuthCodeOptions(t *testing.T) {
-	p := New("id", "secret", "redirect", WithAuthCodeOptions(oauth2.SetAuthURLParam("allow_signup", "false")))
-	if len(p.authCodeOptions) != 1 {
-		t.Fatalf("authCodeOptions len = %d, want 1", len(p.authCodeOptions))
+	p := github.New("id", "secret", "redirect", github.WithAuthCodeOptions(oauth2.SetAuthURLParam("allow_signup", "false")))
+	if got := queryFromBeginAuth(t, p).Get("allow_signup"); got != "false" {
+		t.Fatalf("allow_signup = %q, want false", got)
 	}
 }
 
 func TestGitHubName(t *testing.T) {
-	if got := New("id", "secret", "redirect").Name(); got != "github" {
+	if got := github.New("id", "secret", "redirect").Name(); got != "github" {
 		t.Fatalf("Name() = %q, want github", got)
 	}
 }
 
 func TestGitHubBeginAuthIncludesState(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback", WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
+	p := github.New("id", "secret", "http://example.com/callback", github.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
@@ -155,9 +204,9 @@ func TestGitHubBeginAuthIncludesState(t *testing.T) {
 }
 
 func TestGitHubBeginAuthIncludesCustomOptions(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback",
-		WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
-		WithAuthCodeOptions(oauth2.SetAuthURLParam("allow_signup", "false")),
+	p := github.New("id", "secret", "http://example.com/callback",
+		github.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
+		github.WithAuthCodeOptions(oauth2.SetAuthURLParam("allow_signup", "false")),
 	)
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
@@ -173,7 +222,7 @@ func TestGitHubBeginAuthIncludesCustomOptions(t *testing.T) {
 }
 
 func TestGitHubCompleteAuthRequiresCode(t *testing.T) {
-	p := New("id", "secret", "redirect")
+	p := github.New("id", "secret", "redirect")
 	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil))
 	if !errors.Is(err, goauth.ErrMissingCode) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, goauth.ErrMissingCode)

@@ -1,18 +1,36 @@
-package google
+package google_test
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	goauth "github.com/hazefyro/auth"
+	"github.com/hazefyro/auth/providers/google"
 	"golang.org/x/oauth2"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func jsonResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Status:     http.StatusText(status),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
 
 func newGoogleOAuthServer(t *testing.T, userInfoStatus int, userInfoBody string) (*httptest.Server, oauth2.Endpoint) {
 	t.Helper()
@@ -45,74 +63,106 @@ func newGoogleOAuthServer(t *testing.T, userInfoStatus int, userInfoBody string)
 	return server, oauth2.Endpoint{AuthURL: server.URL + "/auth", TokenURL: server.URL + "/token"}
 }
 
-func newGoogleTestProvider(t *testing.T, body string, opts ...Option) (*Provider, *httptest.Server) {
+func newGoogleTestProvider(t *testing.T, body string, opts ...google.Option) (*google.Provider, *httptest.Server) {
 	t.Helper()
 	server, endpoint := newGoogleOAuthServer(t, http.StatusOK, body)
-	allOpts := append([]Option{WithEndpoint(endpoint), WithUserInfoURL(server.URL + "/userinfo"), WithHTTPClient(server.Client())}, opts...)
-	return New("client-id", "client-secret", "http://example.com/callback", allOpts...), server
+	allOpts := append([]google.Option{google.WithEndpoint(endpoint), google.WithUserInfoURL(server.URL + "/userinfo"), google.WithHTTPClient(server.Client())}, opts...)
+	return google.New("client-id", "client-secret", "http://example.com/callback", allOpts...), server
+}
+
+func queryFromBeginAuth(t *testing.T, p *google.Provider) url.Values {
+	t.Helper()
+	authURL, err := p.BeginAuth("state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	return parsed.Query()
 }
 
 func TestGoogleNewDefaultScopes(t *testing.T) {
-	p := New("id", "secret", "redirect")
+	p := google.New("id", "secret", "redirect")
 	want := []string{"openid", "email", "profile"}
-	if !reflect.DeepEqual(p.config.Scopes, want) {
-		t.Fatalf("Scopes = %#v, want %#v", p.config.Scopes, want)
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Scopes = %#v, want %#v", got, want)
 	}
 }
 
 func TestGoogleNewWithScopes(t *testing.T) {
-	p := New("id", "secret", "redirect", WithScopes("custom"))
-	if !reflect.DeepEqual(p.config.Scopes, []string{"custom"}) {
-		t.Fatalf("Scopes = %#v", p.config.Scopes)
+	p := google.New("id", "secret", "redirect", google.WithScopes("custom"))
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, []string{"custom"}) {
+		t.Fatalf("Scopes = %#v", got)
 	}
 }
 
 func TestGoogleNewWithAdditionalScopes(t *testing.T) {
-	p := New("id", "secret", "redirect", WithAdditionalScopes("calendar"))
+	p := google.New("id", "secret", "redirect", google.WithAdditionalScopes("calendar"))
 	want := []string{"openid", "email", "profile", "calendar"}
-	if !reflect.DeepEqual(p.config.Scopes, want) {
-		t.Fatalf("Scopes = %#v, want %#v", p.config.Scopes, want)
+	if got := strings.Fields(queryFromBeginAuth(t, p).Get("scope")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Scopes = %#v, want %#v", got, want)
 	}
 }
 
 func TestGoogleNewWithEndpoint(t *testing.T) {
 	endpoint := oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}
-	p := New("id", "secret", "redirect", WithEndpoint(endpoint))
-	if p.config.Endpoint != endpoint {
-		t.Fatalf("Endpoint = %#v, want %#v", p.config.Endpoint, endpoint)
+	p := google.New("id", "secret", "redirect", google.WithEndpoint(endpoint))
+	authURL, err := p.BeginAuth("state")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	if !strings.HasPrefix(authURL, endpoint.AuthURL+"?") {
+		t.Fatalf("auth URL = %q, want endpoint %q", authURL, endpoint.AuthURL)
 	}
 }
 
 func TestGoogleNewWithUserInfoURL(t *testing.T) {
-	p := New("id", "secret", "redirect", WithUserInfoURL("https://example.com/userinfo"))
-	if p.userInfoURL != "https://example.com/userinfo" {
-		t.Fatalf("userInfoURL = %q", p.userInfoURL)
+	server, endpoint := newGoogleOAuthServer(t, http.StatusOK, `{"sub":"123"}`)
+	defer server.Close()
+	p := google.New("id", "secret", "redirect", google.WithEndpoint(endpoint), google.WithUserInfoURL(server.URL+"/userinfo"), google.WithHTTPClient(server.Client()))
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
 
 func TestGoogleNewWithHTTPClient(t *testing.T) {
-	client := &http.Client{}
-	p := New("id", "secret", "redirect", WithHTTPClient(client))
-	if p.httpClient != client {
-		t.Fatal("HTTPClient was not stored")
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/token":
+			return jsonResponse(http.StatusOK, `{"access_token":"access-token","token_type":"Bearer","expires_in":3600}`), nil
+		case "/userinfo":
+			return jsonResponse(http.StatusOK, `{"sub":"123"}`), nil
+		default:
+			return jsonResponse(http.StatusNotFound, `{}`), nil
+		}
+	})}
+	p := google.New("id", "secret", "redirect",
+		google.WithEndpoint(oauth2.Endpoint{AuthURL: "http://oauth.test/auth", TokenURL: "http://oauth.test/token"}),
+		google.WithUserInfoURL("http://oauth.test/userinfo"),
+		google.WithHTTPClient(client),
+	)
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
 
 func TestGoogleNewWithAuthCodeOptions(t *testing.T) {
-	p := New("id", "secret", "redirect", WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "consent")))
-	if len(p.authCodeOptions) != 1 {
-		t.Fatalf("authCodeOptions len = %d, want 1", len(p.authCodeOptions))
+	p := google.New("id", "secret", "redirect", google.WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "consent")))
+	if got := queryFromBeginAuth(t, p).Get("prompt"); got != "consent" {
+		t.Fatalf("prompt = %q, want consent", got)
 	}
 }
 
 func TestGoogleName(t *testing.T) {
-	if got := New("id", "secret", "redirect").Name(); got != "google" {
+	if got := google.New("id", "secret", "redirect").Name(); got != "google" {
 		t.Fatalf("Name() = %q, want google", got)
 	}
 }
 
 func TestGoogleBeginAuthIncludesState(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback", WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
+	p := google.New("id", "secret", "http://example.com/callback", google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
@@ -127,7 +177,7 @@ func TestGoogleBeginAuthIncludesState(t *testing.T) {
 }
 
 func TestGoogleBeginAuthRequestsOfflineAccess(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback", WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
+	p := google.New("id", "secret", "http://example.com/callback", google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
@@ -142,9 +192,9 @@ func TestGoogleBeginAuthRequestsOfflineAccess(t *testing.T) {
 }
 
 func TestGoogleBeginAuthIncludesCustomOptions(t *testing.T) {
-	p := New("id", "secret", "http://example.com/callback",
-		WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
-		WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "consent")),
+	p := google.New("id", "secret", "http://example.com/callback",
+		google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
+		google.WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "consent")),
 	)
 	authURL, err := p.BeginAuth("state")
 	if err != nil {
@@ -160,7 +210,7 @@ func TestGoogleBeginAuthIncludesCustomOptions(t *testing.T) {
 }
 
 func TestGoogleCompleteAuthRequiresCode(t *testing.T) {
-	p := New("id", "secret", "redirect")
+	p := google.New("id", "secret", "redirect")
 	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil))
 	if !errors.Is(err, goauth.ErrMissingCode) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, goauth.ErrMissingCode)

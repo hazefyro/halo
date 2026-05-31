@@ -1,12 +1,14 @@
-package randstate
+package randstate_test
 
 import (
 	"encoding/hex"
 	"testing"
+
+	"github.com/hazefyro/auth/internal/randstate"
 )
 
 func TestRandomStateFormat(t *testing.T) {
-	got, err := RandomState()
+	got, err := randstate.RandomState()
 	if err != nil {
 		t.Fatalf("RandomState() error = %v", err)
 	}
@@ -19,11 +21,11 @@ func TestRandomStateFormat(t *testing.T) {
 }
 
 func TestRandomStateUniqueness(t *testing.T) {
-	first, err := RandomState()
+	first, err := randstate.RandomState()
 	if err != nil {
 		t.Fatalf("RandomState() error = %v", err)
 	}
-	second, err := RandomState()
+	second, err := randstate.RandomState()
 	if err != nil {
 		t.Fatalf("RandomState() error = %v", err)
 	}
