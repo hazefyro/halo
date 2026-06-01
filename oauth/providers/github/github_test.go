@@ -149,7 +149,9 @@ func TestGitHubNewWithEndpoint(t *testing.T) {
 func TestGitHubNewWithUserInfoURL(t *testing.T) {
 	server, endpoint := newGitHubOAuthServer(t, http.StatusOK, `{"id":123,"email":"user@example.com"}`)
 	defer server.Close()
-	p := github.New("id", "secret", "redirect", github.WithEndpoint(endpoint), github.WithUserInfoURL(server.URL+"/userinfo"), github.WithHTTPClient(server.Client()))
+	client := server.Client()
+	client.Transport = &githubEmailTransport{base: client.Transport, status: http.StatusOK, body: `[]`}
+	p := github.New("id", "secret", "redirect", github.WithEndpoint(endpoint), github.WithUserInfoURL(server.URL+"/userinfo"), github.WithHTTPClient(client))
 	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -162,6 +164,8 @@ func TestGitHubNewWithHTTPClient(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"access_token":"access-token","token_type":"Bearer","expires_in":3600}`), nil
 		case "/userinfo":
 			return jsonResponse(http.StatusOK, `{"id":123,"email":"user@example.com"}`), nil
+		case "/user/emails":
+			return jsonResponse(http.StatusOK, `[]`), nil
 		default:
 			return jsonResponse(http.StatusNotFound, `{}`), nil
 		}
@@ -312,14 +316,20 @@ func TestGitHubCompleteAuthReturnsOAuthErrors(t *testing.T) {
 	}
 }
 
-func TestGitHubCompleteAuthSkipsEmailEndpointWhenEmailPresent(t *testing.T) {
-	p, server, transport := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com"}`, `[{"email":"other@example.com","primary":true,"verified":true}]`, http.StatusOK)
+func TestGitHubCompleteAuthPrefersVerifiedPrimaryOverProfileEmail(t *testing.T) {
+	// The profile email carries no verification signal, so the verified primary
+	// from the emails endpoint must win even when a profile email is present.
+	p, server, transport := newGitHubTestProvider(t, `{"id":123,"email":"profile@example.com"}`, `[{"email":"primary@example.com","primary":true,"verified":true}]`, http.StatusOK)
 	defer server.Close()
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	if transport.emailCalls != 0 {
-		t.Fatalf("email endpoint calls = %d, want 0", transport.emailCalls)
+	if transport.emailCalls != 1 {
+		t.Fatalf("email endpoint calls = %d, want 1", transport.emailCalls)
+	}
+	if got.Identity.Email != "primary@example.com" || !got.Identity.EmailVerified {
+		t.Fatalf("Email = %q verified = %v, want primary@example.com / true", got.Identity.Email, got.Identity.EmailVerified)
 	}
 }
 
@@ -344,20 +354,22 @@ func TestGitHubCompleteAuthUsesPrimaryVerifiedEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	if got.Identity.Email != "primary@example.com" {
-		t.Fatalf("Email = %q, want primary@example.com", got.Identity.Email)
+	if got.Identity.Email != "primary@example.com" || !got.Identity.EmailVerified {
+		t.Fatalf("Email = %q verified = %v, want primary@example.com / true", got.Identity.Email, got.Identity.EmailVerified)
 	}
 }
 
-func TestGitHubCompleteAuthAllowsNoPrimaryVerifiedEmail(t *testing.T) {
+func TestGitHubCompleteAuthReturnsUnverifiedPrimaryEmail(t *testing.T) {
+	// An unverified primary is still returned, but flagged unverified so the
+	// caller won't trust it for account linking.
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":""}`, `[{"email":"primary@example.com","primary":true,"verified":false}]`, http.StatusOK)
 	defer server.Close()
 	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	if got.Identity.Email != "" {
-		t.Fatalf("Email = %q, want empty", got.Identity.Email)
+	if got.Identity.Email != "primary@example.com" || got.Identity.EmailVerified {
+		t.Fatalf("Email = %q verified = %v, want primary@example.com / false", got.Identity.Email, got.Identity.EmailVerified)
 	}
 }
 

@@ -212,13 +212,13 @@ func TestDiscordCompleteAuthFetchesUserInfo(t *testing.T) {
 }
 
 func TestDiscordCompleteAuthMapsIdentity(t *testing.T) {
-	p, server := newDiscordTestProvider(t, `{"id":"123","email":"user@example.com","username":"user","global_name":"User"}`)
+	p, server := newDiscordTestProvider(t, `{"id":"123","email":"user@example.com","verified":true,"username":"user","global_name":"User"}`)
 	defer server.Close()
 	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	want := halo.Identity{ID: "123", Email: "user@example.com", Username: "user", Name: "User", Provider: "discord"}
+	want := halo.Identity{ID: "123", Email: "user@example.com", EmailVerified: true, Username: "user", Name: "User", Provider: "discord"}
 	if got.Identity != want {
 		t.Fatalf("Identity = %#v, want %#v", got.Identity, want)
 	}

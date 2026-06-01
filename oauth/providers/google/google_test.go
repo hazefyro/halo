@@ -227,13 +227,13 @@ func TestGoogleCompleteAuthFetchesUserInfo(t *testing.T) {
 }
 
 func TestGoogleCompleteAuthMapsIdentity(t *testing.T) {
-	p, server := newGoogleTestProvider(t, `{"sub":"123","email":"user@example.com","name":"User","picture":"https://example.com/avatar.png"}`)
+	p, server := newGoogleTestProvider(t, `{"sub":"123","email":"user@example.com","email_verified":true,"name":"User","picture":"https://example.com/avatar.png"}`)
 	defer server.Close()
 	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	want := halo.Identity{ID: "123", Email: "user@example.com", Name: "User", AvatarURL: "https://example.com/avatar.png", Provider: "google"}
+	want := halo.Identity{ID: "123", Email: "user@example.com", EmailVerified: true, Name: "User", AvatarURL: "https://example.com/avatar.png", Provider: "google"}
 	if got.Identity != want {
 		t.Fatalf("Identity = %#v, want %#v", got.Identity, want)
 	}

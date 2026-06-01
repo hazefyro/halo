@@ -104,27 +104,33 @@ func (p *Provider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 		return oauth.AuthResult{}, err
 	}
 
-	email := maputil.GetString(raw, "email")
-	if email == "" {
-		email, err = fetchPrimaryEmail(p.config.Client(ctx, token))
-		if err != nil {
-			return oauth.AuthResult{}, err
-		}
-	}
-
 	id := maputil.GetID(raw, "id")
 	if id == "" {
 		return oauth.AuthResult{}, oauth.ErrMissingUserID
 	}
 
+	// GitHub's profile email carries no verification signal, so the authoritative
+	// verified address lives in the emails endpoint. Prefer it; fall back to the
+	// (unverified) profile email only when the emails endpoint yields none.
+	email := maputil.GetString(raw, "email")
+	emailVerified := false
+	primary, verified, err := fetchPrimaryEmail(p.config.Client(ctx, token))
+	if err != nil {
+		return oauth.AuthResult{}, err
+	}
+	if primary != "" {
+		email, emailVerified = primary, verified
+	}
+
 	return oauth.AuthResult{
 		Identity: halo.Identity{
-			ID:        id,
-			Email:     email,
-			Username:  maputil.GetString(raw, "login"),
-			Name:      maputil.GetString(raw, "name"),
-			AvatarURL: maputil.GetString(raw, "avatar_url"),
-			Provider:  p.Name(),
+			ID:            id,
+			Email:         email,
+			EmailVerified: emailVerified,
+			Username:      maputil.GetString(raw, "login"),
+			Name:          maputil.GetString(raw, "name"),
+			AvatarURL:     maputil.GetString(raw, "avatar_url"),
+			Provider:      p.Name(),
 		},
 		Credentials: oauth.Credentials{
 			AccessToken:  token.AccessToken,
@@ -135,15 +141,17 @@ func (p *Provider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 	}, nil
 }
 
-func fetchPrimaryEmail(client *http.Client) (string, error) {
+// fetchPrimaryEmail returns the user's primary email and whether GitHub has
+// verified it. It returns an empty email when the account has no primary.
+func fetchPrimaryEmail(client *http.Client) (email string, verified bool, err error) {
 	res, err := client.Get(userEmailURL)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return "", fmt.Errorf("emails request failed with status %d", res.StatusCode)
+		return "", false, fmt.Errorf("emails request failed with status %d", res.StatusCode)
 	}
 
 	var emails []struct {
@@ -155,14 +163,14 @@ func fetchPrimaryEmail(client *http.Client) (string, error) {
 	dec := json.NewDecoder(io.LimitReader(res.Body, 1<<20))
 	dec.UseNumber()
 	if err := dec.Decode(&emails); err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	for _, e := range emails {
-		if e.Primary && e.Verified {
-			return e.Email, nil
+		if e.Primary {
+			return e.Email, e.Verified, nil
 		}
 	}
 
-	return "", nil
+	return "", false, nil
 }

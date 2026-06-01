@@ -13,6 +13,18 @@ func GetString(m map[string]any, key string) string {
 	return ""
 }
 
+// GetBool returns the bool value for key. Providers sometimes encode booleans
+// as the strings "true"/"false", so both forms are accepted.
+func GetBool(m map[string]any, key string) bool {
+	switch v := m[key].(type) {
+	case bool:
+		return v
+	case string:
+		return v == "true"
+	}
+	return false
+}
+
 // GetID returns a provider ID as a string.
 func GetID(m map[string]any, key string) string {
 	switch v := m[key].(type) {

@@ -108,11 +108,12 @@ func (p *Provider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 
 	return oauth.AuthResult{
 		Identity: halo.Identity{
-			ID:        id,
-			Email:     maputil.GetString(raw, "email"),
-			Name:      maputil.GetString(raw, "name"),
-			AvatarURL: maputil.GetString(raw, "picture"),
-			Provider:  p.Name(),
+			ID:            id,
+			Email:         maputil.GetString(raw, "email"),
+			EmailVerified: maputil.GetBool(raw, "email_verified"),
+			Name:          maputil.GetString(raw, "name"),
+			AvatarURL:     maputil.GetString(raw, "picture"),
+			Provider:      p.Name(),
 		},
 		Credentials: oauth.Credentials{
 			AccessToken:  token.AccessToken,
