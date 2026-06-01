@@ -19,7 +19,7 @@ type Store struct {
 // New creates a Store from the given options. It requires a client and a
 // positive TTL.
 func New(opts ...Option) (*Store, error) {
-	c := applyOption(opts)
+	c := applyOptions(opts)
 
 	if err := c.validate(); err != nil {
 		return nil, err

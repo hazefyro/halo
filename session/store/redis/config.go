@@ -34,7 +34,7 @@ func defaultConfig() Config {
 	}
 }
 
-func applyOption(opts []Option) Config {
+func applyOptions(opts []Option) Config {
 	c := defaultConfig()
 
 	for _, opt := range opts {
