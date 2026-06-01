@@ -11,10 +11,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Store is a Redis-backed session store.
 type Store struct {
 	cfg Config
 }
 
+// New creates a Store from the given options. It requires a client and a
+// positive TTL.
 func New(opts ...Option) (*Store, error) {
 	c := applyOption(opts)
 
@@ -28,6 +31,7 @@ func New(opts ...Option) (*Store, error) {
 		nil
 }
 
+// Save writes the session to Redis under its ID with the configured TTL.
 func (s *Store) Save(ctx context.Context, sess *session.Session) error {
 	data, err := json.Marshal(sess)
 	if err != nil {
@@ -41,6 +45,7 @@ func (s *Store) Save(ctx context.Context, sess *session.Session) error {
 	return nil
 }
 
+// Get returns the session for id, or [session.ErrSessionNotFound] if absent.
 func (s *Store) Get(ctx context.Context, id session.SessionID) (*session.Session, error) {
 	data, err := s.cfg.Client.Get(ctx, s.key(id)).Bytes()
 	if err != nil {
@@ -58,6 +63,7 @@ func (s *Store) Get(ctx context.Context, id session.SessionID) (*session.Session
 	return &sess, nil
 }
 
+// Touch extends the session's expiry and rewrites it with a fresh TTL.
 func (s *Store) Touch(ctx context.Context, sess *session.Session, now time.Time) error {
 	sess.LastSeenAt = now
 	sess.ExpiresAt = now.Add(s.cfg.TTL)
@@ -74,6 +80,7 @@ func (s *Store) Touch(ctx context.Context, sess *session.Session, now time.Time)
 	return nil
 }
 
+// Delete removes the session for id; a missing key is not an error.
 func (s *Store) Delete(ctx context.Context, id session.SessionID) error {
 	if err := s.cfg.Client.Del(ctx, s.key(id)).Err(); err != nil {
 		return fmt.Errorf("redis: delete session: %w", err)
@@ -82,10 +89,12 @@ func (s *Store) Delete(ctx context.Context, id session.SessionID) error {
 	return nil
 }
 
+// Encode returns the cookie value for the session: its opaque ID.
 func (s *Store) Encode(sess *session.Session) (string, error) {
 	return sess.ID.String(), nil
 }
 
+// TTL returns the configured session lifetime.
 func (s *Store) TTL() time.Duration {
 	return s.cfg.TTL
 }
