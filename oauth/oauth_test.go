@@ -402,7 +402,7 @@ func TestCallbackPassesVerifierToProvider(t *testing.T) {
 
 func TestCallbackErrorErrorWithDescription(t *testing.T) {
 	err := (&oauth.CallbackError{Code: "access_denied", Description: "nope"}).Error()
-	want := "oauth callback error: access_denied: nope"
+	want := "oauth: callback error: access_denied: nope"
 	if err != want {
 		t.Fatalf("Error() = %q, want %q", err, want)
 	}
@@ -410,7 +410,7 @@ func TestCallbackErrorErrorWithDescription(t *testing.T) {
 
 func TestCallbackErrorErrorWithoutDescription(t *testing.T) {
 	err := (&oauth.CallbackError{Code: "access_denied"}).Error()
-	want := "oauth callback error: access_denied"
+	want := "oauth: callback error: access_denied"
 	if err != want {
 		t.Fatalf("Error() = %q, want %q", err, want)
 	}

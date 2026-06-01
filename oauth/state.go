@@ -49,7 +49,7 @@ func NewCookieStateStore(secret string, opts ...CookieOption) (*CookieStateStore
 }
 
 func (s *CookieStateStore) cookieName(provider string) string {
-	return "goauth_state_" + provider
+	return "halo_state_" + provider
 }
 
 // Store writes a signed state cookie for a provider. The cookie holds the PKCE

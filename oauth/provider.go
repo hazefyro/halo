@@ -18,7 +18,7 @@ type Provider interface {
 }
 
 // TokenRefresher is an optional capability a Provider may implement.
-// Use a type assertion to check: tr, ok := p.(goauth.TokenRefresher)
+// Use a type assertion to check: tr, ok := p.(oauth.TokenRefresher)
 type TokenRefresher interface {
 	RefreshToken(ctx context.Context, token string) (Credentials, error)
 }

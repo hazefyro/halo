@@ -63,8 +63,8 @@ func TestCookieStateStoreStoreUsesProviderCookieName(t *testing.T) {
 		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
 	cookie := storedCookie(t, store, "state", "verifier", "google")
-	if cookie.Name != "goauth_state_google" {
-		t.Fatalf("cookie name = %q, want goauth_state_google", cookie.Name)
+	if cookie.Name != "halo_state_google" {
+		t.Fatalf("cookie name = %q, want halo_state_google", cookie.Name)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestCookieStateStoreClearExpiresCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	store.Clear(w, "google")
 	cookie := w.Result().Cookies()[0]
-	if cookie.Name != "goauth_state_google" || cookie.Value != "" || cookie.MaxAge != -1 {
+	if cookie.Name != "halo_state_google" || cookie.Value != "" || cookie.MaxAge != -1 {
 		t.Fatalf("clear cookie = %#v", cookie)
 	}
 }
