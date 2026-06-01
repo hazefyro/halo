@@ -29,7 +29,6 @@ func WithIssuer(issuer string) Option {
 }
 
 func defaultConfig() Config {
-
 	return Config{
 		Config: session.Config{
 			CookieName: "session",
