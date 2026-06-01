@@ -1,30 +1,16 @@
 package auth
 
-import "time"
-
-// RawData is the raw JSON payload returned by the provider's userinfo endpoint.
-type RawData map[string]any
-
-// Identity is the normalized user identity returned by a provider.
+// Identity is the normalized user identity produced by a login method.
+//
+// Every login method (OAuth, password, ...) returns an Identity. A method
+// fills the fields it can supply and leaves the rest zero — a password login,
+// for example, returns Email and Name but leaves ID and AvatarURL empty for
+// the application's data store to populate.
 type Identity struct {
 	ID        string
 	Email     string
 	Name      string
 	Username  string // login name: Discord tag, GitHub login
 	AvatarURL string
-	Provider  string // "google", "discord", etc.
-}
-
-// Credentials contains OAuth credentials returned by a provider.
-type Credentials struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    time.Time
-}
-
-// AuthResult is the full result of a completed OAuth callback.
-type AuthResult struct {
-	Identity    Identity
-	Credentials Credentials
-	RawData     RawData
+	Provider  string // "google", "discord", "password", etc.
 }
