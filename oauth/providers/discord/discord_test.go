@@ -73,7 +73,7 @@ func newDiscordTestProvider(t *testing.T, body string, opts ...discord.Option) (
 
 func queryFromBeginAuth(t *testing.T, p *discord.Provider) url.Values {
 	t.Helper()
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -110,7 +110,7 @@ func TestDiscordNewWithAdditionalScopes(t *testing.T) {
 func TestDiscordNewWithEndpoint(t *testing.T) {
 	endpoint := oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}
 	p := discord.New("id", "secret", "redirect", discord.WithEndpoint(endpoint))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestDiscordNewWithUserInfoURL(t *testing.T) {
 	server, endpoint := newDiscordOAuthServer(t, http.StatusOK, `{"id":"123"}`)
 	defer server.Close()
 	p := discord.New("id", "secret", "redirect", discord.WithEndpoint(endpoint), discord.WithUserInfoURL(server.URL+"/userinfo"), discord.WithHTTPClient(server.Client()))
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -144,7 +144,7 @@ func TestDiscordNewWithHTTPClient(t *testing.T) {
 		discord.WithUserInfoURL("http://oauth.test/userinfo"),
 		discord.WithHTTPClient(client),
 	)
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -164,7 +164,7 @@ func TestDiscordName(t *testing.T) {
 
 func TestDiscordBeginAuthIncludesState(t *testing.T) {
 	p := discord.New("id", "secret", "http://example.com/callback", discord.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -182,7 +182,7 @@ func TestDiscordBeginAuthIncludesCustomOptions(t *testing.T) {
 		discord.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
 		discord.WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "none")),
 	)
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -197,7 +197,7 @@ func TestDiscordBeginAuthIncludesCustomOptions(t *testing.T) {
 
 func TestDiscordCompleteAuthRequiresCode(t *testing.T) {
 	p := discord.New("id", "secret", "redirect")
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil), "")
 	if !errors.Is(err, oauth.ErrMissingCode) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, oauth.ErrMissingCode)
 	}
@@ -206,7 +206,7 @@ func TestDiscordCompleteAuthRequiresCode(t *testing.T) {
 func TestDiscordCompleteAuthFetchesUserInfo(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123"}`)
 	defer server.Close()
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -214,7 +214,7 @@ func TestDiscordCompleteAuthFetchesUserInfo(t *testing.T) {
 func TestDiscordCompleteAuthMapsIdentity(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123","email":"user@example.com","verified":true,"username":"user","global_name":"User"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -227,7 +227,7 @@ func TestDiscordCompleteAuthMapsIdentity(t *testing.T) {
 func TestDiscordCompleteAuthBuildsAvatarURL(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123","avatar":"hash"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -240,7 +240,7 @@ func TestDiscordCompleteAuthBuildsAvatarURL(t *testing.T) {
 func TestDiscordCompleteAuthAllowsMissingAvatar(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -252,7 +252,7 @@ func TestDiscordCompleteAuthAllowsMissingAvatar(t *testing.T) {
 func TestDiscordCompleteAuthSetsProvider(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -264,7 +264,7 @@ func TestDiscordCompleteAuthSetsProvider(t *testing.T) {
 func TestDiscordCompleteAuthReturnsCredentials(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -276,7 +276,7 @@ func TestDiscordCompleteAuthReturnsCredentials(t *testing.T) {
 func TestDiscordCompleteAuthPreservesRawData(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123","email":"user@example.com"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -288,7 +288,7 @@ func TestDiscordCompleteAuthPreservesRawData(t *testing.T) {
 func TestDiscordCompleteAuthRequiresUserID(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"email":"user@example.com"}`)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if !errors.Is(err, oauth.ErrMissingUserID) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, oauth.ErrMissingUserID)
 	}
@@ -297,14 +297,14 @@ func TestDiscordCompleteAuthRequiresUserID(t *testing.T) {
 func TestDiscordCompleteAuthReturnsOAuthErrors(t *testing.T) {
 	p, server := newDiscordTestProvider(t, `{"id":"123"}`)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=bad", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=bad", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() exchange error = nil, want error")
 	}
 
 	p, server = newDiscordTestProvider(t, `nope`)
 	defer server.Close()
-	_, err = p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err = p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() userinfo error = nil, want error")
 	}

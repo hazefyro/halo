@@ -11,19 +11,22 @@ import (
 )
 
 type fakeProvider struct {
-	name           string
-	beginState     string
-	beginURL       string
-	beginErr       error
-	completeCalled bool
-	completeErr    error
-	result         oauth.AuthResult
+	name             string
+	beginState       string
+	beginVerifier    string
+	beginURL         string
+	beginErr         error
+	completeCalled   bool
+	completeVerifier string
+	completeErr      error
+	result           oauth.AuthResult
 }
 
 func (p *fakeProvider) Name() string { return p.name }
 
-func (p *fakeProvider) BeginAuth(state string) (string, error) {
+func (p *fakeProvider) BeginAuth(state, verifier string) (string, error) {
 	p.beginState = state
+	p.beginVerifier = verifier
 	if p.beginErr != nil {
 		return "", p.beginErr
 	}
@@ -33,8 +36,9 @@ func (p *fakeProvider) BeginAuth(state string) (string, error) {
 	return "/provider/auth?state=" + state, nil
 }
 
-func (p *fakeProvider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
+func (p *fakeProvider) CompleteAuth(r *http.Request, verifier string) (oauth.AuthResult, error) {
 	p.completeCalled = true
+	p.completeVerifier = verifier
 	if p.completeErr != nil {
 		return oauth.AuthResult{}, p.completeErr
 	}
@@ -50,24 +54,27 @@ func (p *fakeProvider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 
 type fakeStateStore struct {
 	storeState     string
+	storeVerifier  string
 	storeProvider  string
 	storeErr       error
 	verifyState    string
 	verifyProvider string
+	verifyVerifier string
 	verifyErr      error
 	clearProvider  string
 }
 
-func (s *fakeStateStore) Store(w http.ResponseWriter, r *http.Request, state, provider string) error {
+func (s *fakeStateStore) Store(w http.ResponseWriter, r *http.Request, state, verifier, provider string) error {
 	s.storeState = state
+	s.storeVerifier = verifier
 	s.storeProvider = provider
 	return s.storeErr
 }
 
-func (s *fakeStateStore) Verify(r *http.Request, state, provider string) error {
+func (s *fakeStateStore) Verify(r *http.Request, state, provider string) (string, error) {
 	s.verifyState = state
 	s.verifyProvider = provider
-	return s.verifyErr
+	return s.verifyVerifier, s.verifyErr
 }
 
 func (s *fakeStateStore) Clear(w http.ResponseWriter, provider string) {
@@ -362,6 +369,34 @@ func TestCallbackReturnsAuthResult(t *testing.T) {
 		got.Credentials.AccessToken != result.Credentials.AccessToken ||
 		got.RawData["id"] != result.RawData["id"] {
 		t.Fatalf("Callback() result = %#v, want %#v", got, result)
+	}
+}
+
+func TestBeginAuthGeneratesPKCEVerifier(t *testing.T) {
+	p := &fakeProvider{name: "google"}
+	store := &fakeStateStore{}
+	r := newTestRegistry(t, p, store)
+	if err := r.BeginAuth(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), "google"); err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	if p.beginVerifier == "" {
+		t.Fatal("BeginAuth did not pass a PKCE verifier to the provider")
+	}
+	if store.storeVerifier != p.beginVerifier {
+		t.Fatalf("stored verifier = %q, provider got %q; want equal", store.storeVerifier, p.beginVerifier)
+	}
+}
+
+func TestCallbackPassesVerifierToProvider(t *testing.T) {
+	p := &fakeProvider{name: "google"}
+	store := &fakeStateStore{verifyVerifier: "stored-verifier"}
+	r := newTestRegistry(t, p, store)
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil)
+	if _, err := r.Callback(httptest.NewRecorder(), req, "google"); err != nil {
+		t.Fatalf("Callback() error = %v", err)
+	}
+	if p.completeVerifier != "stored-verifier" {
+		t.Fatalf("CompleteAuth verifier = %q, want stored-verifier", p.completeVerifier)
 	}
 }
 

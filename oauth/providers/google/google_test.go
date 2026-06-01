@@ -73,7 +73,7 @@ func newGoogleTestProvider(t *testing.T, body string, opts ...google.Option) (*g
 
 func queryFromBeginAuth(t *testing.T, p *google.Provider) url.Values {
 	t.Helper()
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -110,7 +110,7 @@ func TestGoogleNewWithAdditionalScopes(t *testing.T) {
 func TestGoogleNewWithEndpoint(t *testing.T) {
 	endpoint := oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}
 	p := google.New("id", "secret", "redirect", google.WithEndpoint(endpoint))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestGoogleNewWithUserInfoURL(t *testing.T) {
 	server, endpoint := newGoogleOAuthServer(t, http.StatusOK, `{"sub":"123"}`)
 	defer server.Close()
 	p := google.New("id", "secret", "redirect", google.WithEndpoint(endpoint), google.WithUserInfoURL(server.URL+"/userinfo"), google.WithHTTPClient(server.Client()))
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -144,7 +144,7 @@ func TestGoogleNewWithHTTPClient(t *testing.T) {
 		google.WithUserInfoURL("http://oauth.test/userinfo"),
 		google.WithHTTPClient(client),
 	)
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -156,6 +156,67 @@ func TestGoogleNewWithAuthCodeOptions(t *testing.T) {
 	}
 }
 
+func TestGoogleBeginAuthIncludesPKCEChallenge(t *testing.T) {
+	p := google.New("id", "secret", "redirect", google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
+	authURL, err := p.BeginAuth("state", "my-verifier")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if parsed.Query().Get("code_challenge") == "" {
+		t.Fatal("code_challenge missing from auth URL")
+	}
+	if got := parsed.Query().Get("code_challenge_method"); got != "S256" {
+		t.Fatalf("code_challenge_method = %q, want S256", got)
+	}
+}
+
+func TestGoogleBeginAuthOmitsPKCEWithoutVerifier(t *testing.T) {
+	p := google.New("id", "secret", "redirect", google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
+	authURL, err := p.BeginAuth("state", "")
+	if err != nil {
+		t.Fatalf("BeginAuth() error = %v", err)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got := parsed.Query().Get("code_challenge"); got != "" {
+		t.Fatalf("code_challenge = %q, want empty", got)
+	}
+}
+
+func TestGoogleCompleteAuthSendsCodeVerifier(t *testing.T) {
+	var gotVerifier string
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/token":
+			body, _ := io.ReadAll(r.Body)
+			vals, _ := url.ParseQuery(string(body))
+			gotVerifier = vals.Get("code_verifier")
+			return jsonResponse(http.StatusOK, `{"access_token":"access-token","token_type":"Bearer","expires_in":3600}`), nil
+		case "/userinfo":
+			return jsonResponse(http.StatusOK, `{"sub":"123"}`), nil
+		default:
+			return jsonResponse(http.StatusNotFound, `{}`), nil
+		}
+	})}
+	p := google.New("id", "secret", "redirect",
+		google.WithEndpoint(oauth2.Endpoint{AuthURL: "http://oauth.test/auth", TokenURL: "http://oauth.test/token"}),
+		google.WithUserInfoURL("http://oauth.test/userinfo"),
+		google.WithHTTPClient(client),
+	)
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "my-verifier"); err != nil {
+		t.Fatalf("CompleteAuth() error = %v", err)
+	}
+	if gotVerifier != "my-verifier" {
+		t.Fatalf("code_verifier = %q, want my-verifier", gotVerifier)
+	}
+}
+
 func TestGoogleName(t *testing.T) {
 	if got := google.New("id", "secret", "redirect").Name(); got != "google" {
 		t.Fatalf("Name() = %q, want google", got)
@@ -164,7 +225,7 @@ func TestGoogleName(t *testing.T) {
 
 func TestGoogleBeginAuthIncludesState(t *testing.T) {
 	p := google.New("id", "secret", "http://example.com/callback", google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -179,7 +240,7 @@ func TestGoogleBeginAuthIncludesState(t *testing.T) {
 
 func TestGoogleBeginAuthRequestsOfflineAccess(t *testing.T) {
 	p := google.New("id", "secret", "http://example.com/callback", google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -197,7 +258,7 @@ func TestGoogleBeginAuthIncludesCustomOptions(t *testing.T) {
 		google.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
 		google.WithAuthCodeOptions(oauth2.SetAuthURLParam("prompt", "consent")),
 	)
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -212,7 +273,7 @@ func TestGoogleBeginAuthIncludesCustomOptions(t *testing.T) {
 
 func TestGoogleCompleteAuthRequiresCode(t *testing.T) {
 	p := google.New("id", "secret", "redirect")
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil), "")
 	if !errors.Is(err, oauth.ErrMissingCode) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, oauth.ErrMissingCode)
 	}
@@ -221,7 +282,7 @@ func TestGoogleCompleteAuthRequiresCode(t *testing.T) {
 func TestGoogleCompleteAuthFetchesUserInfo(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"sub":"123"}`)
 	defer server.Close()
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -229,7 +290,7 @@ func TestGoogleCompleteAuthFetchesUserInfo(t *testing.T) {
 func TestGoogleCompleteAuthMapsIdentity(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"sub":"123","email":"user@example.com","email_verified":true,"name":"User","picture":"https://example.com/avatar.png"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -242,7 +303,7 @@ func TestGoogleCompleteAuthMapsIdentity(t *testing.T) {
 func TestGoogleCompleteAuthSetsProvider(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"sub":"123"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -254,7 +315,7 @@ func TestGoogleCompleteAuthSetsProvider(t *testing.T) {
 func TestGoogleCompleteAuthReturnsCredentials(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"sub":"123"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -266,7 +327,7 @@ func TestGoogleCompleteAuthReturnsCredentials(t *testing.T) {
 func TestGoogleCompleteAuthPreservesRawData(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"sub":"123","email":"user@example.com"}`)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -278,7 +339,7 @@ func TestGoogleCompleteAuthPreservesRawData(t *testing.T) {
 func TestGoogleCompleteAuthRequiresUserID(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"email":"user@example.com"}`)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if !errors.Is(err, oauth.ErrMissingUserID) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, oauth.ErrMissingUserID)
 	}
@@ -287,14 +348,14 @@ func TestGoogleCompleteAuthRequiresUserID(t *testing.T) {
 func TestGoogleCompleteAuthReturnsOAuthErrors(t *testing.T) {
 	p, server := newGoogleTestProvider(t, `{"sub":"123"}`)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=bad", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=bad", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() exchange error = nil, want error")
 	}
 
 	p, server = newGoogleTestProvider(t, `nope`)
 	defer server.Close()
-	_, err = p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err = p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() userinfo error = nil, want error")
 	}

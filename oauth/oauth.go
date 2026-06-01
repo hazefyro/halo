@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/hazefyro/halo/oauth/internal/randstate"
+	"golang.org/x/oauth2"
 )
 
 var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -71,12 +72,14 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 		return err
 	}
 
-	redirectURL, err := p.BeginAuth(state)
+	verifier := oauth2.GenerateVerifier()
+
+	redirectURL, err := p.BeginAuth(state, verifier)
 	if err != nil {
 		return err
 	}
 
-	if err := r.stateStore.Store(w, req, state, p.Name()); err != nil {
+	if err := r.stateStore.Store(w, req, state, verifier, p.Name()); err != nil {
 		return err
 	}
 
@@ -105,10 +108,11 @@ func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerNa
 		}
 	}
 
-	if err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name()); err != nil {
+	verifier, err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name())
+	if err != nil {
 		return AuthResult{}, err
 	}
 	r.stateStore.Clear(w, p.Name())
 
-	return p.CompleteAuth(req)
+	return p.CompleteAuth(req, verifier)
 }

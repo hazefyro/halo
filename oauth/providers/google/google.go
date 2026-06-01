@@ -79,13 +79,17 @@ func New(clientID, clientSecret, redirectURL string, opts ...Option) *Provider {
 func (p *Provider) Name() string { return "google" }
 
 // BeginAuth returns the Google authorization URL.
-func (p *Provider) BeginAuth(state string) (string, error) {
-	opts := append([]oauth2.AuthCodeOption{oauth2.AccessTypeOffline}, p.authCodeOptions...)
+func (p *Provider) BeginAuth(state, verifier string) (string, error) {
+	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	if verifier != "" {
+		opts = append(opts, oauth2.S256ChallengeOption(verifier))
+	}
+	opts = append(opts, p.authCodeOptions...)
 	return p.config.AuthCodeURL(state, opts...), nil
 }
 
 // CompleteAuth exchanges a callback request for identity and credentials.
-func (p *Provider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
+func (p *Provider) CompleteAuth(r *http.Request, verifier string) (oauth.AuthResult, error) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		return oauth.AuthResult{}, oauth.ErrMissingCode
@@ -96,7 +100,12 @@ func (p *Provider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.httpClient)
 	}
 
-	raw, token, err := oauthutil.FetchUserInfo(ctx, p.config, code, p.userInfoURL)
+	var exchangeOpts []oauth2.AuthCodeOption
+	if verifier != "" {
+		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifier))
+	}
+
+	raw, token, err := oauthutil.FetchUserInfo(ctx, p.config, code, p.userInfoURL, exchangeOpts...)
 	if err != nil {
 		return oauth.AuthResult{}, err
 	}

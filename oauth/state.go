@@ -3,16 +3,20 @@ package oauth
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/hazefyro/halo/oauth/internal/hmacutil"
 )
 
-// StateStore stores and verifies OAuth state values.
+// StateStore stores and verifies OAuth state across the authorization redirect.
+// It also carries the PKCE code verifier, which — unlike the state — is not
+// echoed back by the provider and so must be persisted by the store.
 type StateStore interface {
-	// Store persists a state value for a provider.
-	Store(w http.ResponseWriter, r *http.Request, state, provider string) error
-	// Verify checks a callback state value for a provider.
-	Verify(r *http.Request, state, provider string) error
+	// Store persists the state and PKCE verifier for a provider.
+	Store(w http.ResponseWriter, r *http.Request, state, verifier, provider string) error
+	// Verify checks a callback state value for a provider and returns the
+	// persisted PKCE verifier on success.
+	Verify(r *http.Request, state, provider string) (verifier string, err error)
 	// Clear removes a stored provider state value.
 	Clear(w http.ResponseWriter, provider string)
 }
@@ -48,11 +52,13 @@ func (s *CookieStateStore) cookieName(provider string) string {
 	return "goauth_state_" + provider
 }
 
-// Store writes a signed state cookie for a provider.
-func (s *CookieStateStore) Store(w http.ResponseWriter, r *http.Request, state, provider string) error {
+// Store writes a signed state cookie for a provider. The cookie holds the PKCE
+// verifier in the clear alongside an HMAC that binds the state and verifier
+// together, so neither can be tampered with or swapped independently.
+func (s *CookieStateStore) Store(w http.ResponseWriter, r *http.Request, state, verifier, provider string) error {
 	http.SetCookie(w, &http.Cookie{
 		Name:     s.cookieName(provider),
-		Value:    hmacutil.Sign(s.secret, state),
+		Value:    verifier + "." + hmacutil.Sign(s.secret, state+"."+verifier),
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.secure,
@@ -62,16 +68,21 @@ func (s *CookieStateStore) Store(w http.ResponseWriter, r *http.Request, state, 
 	return nil
 }
 
-// Verify checks a signed state cookie for a provider.
-func (s *CookieStateStore) Verify(r *http.Request, state, provider string) error {
+// Verify checks a signed state cookie for a provider and returns the PKCE
+// verifier it carries.
+func (s *CookieStateStore) Verify(r *http.Request, state, provider string) (string, error) {
 	cookie, err := r.Cookie(s.cookieName(provider))
 	if err != nil {
-		return ErrStateMismatch
+		return "", ErrStateMismatch
 	}
-	if !hmacutil.Verify(s.secret, state, cookie.Value) {
-		return ErrStateMismatch
+	verifier, sig, ok := strings.Cut(cookie.Value, ".")
+	if !ok {
+		return "", ErrStateMismatch
 	}
-	return nil
+	if !hmacutil.Verify(s.secret, state+"."+verifier, sig) {
+		return "", ErrStateMismatch
+	}
+	return verifier, nil
 }
 
 // Clear expires the state cookie for a provider.

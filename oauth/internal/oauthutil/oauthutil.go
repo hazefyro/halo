@@ -32,8 +32,9 @@ func RefreshToken(ctx context.Context, config *oauth2.Config, refreshToken strin
 }
 
 // FetchUserInfo exchanges an auth code and fetches provider userinfo JSON.
-func FetchUserInfo(ctx context.Context, config *oauth2.Config, code, url string) (map[string]any, *oauth2.Token, error) {
-	token, err := config.Exchange(ctx, code)
+// exchangeOpts are passed to the token exchange (e.g. a PKCE code verifier).
+func FetchUserInfo(ctx context.Context, config *oauth2.Config, code, url string, exchangeOpts ...oauth2.AuthCodeOption) (map[string]any, *oauth2.Token, error) {
+	token, err := config.Exchange(ctx, code, exchangeOpts...)
 	if err != nil {
 		return nil, nil, err
 	}

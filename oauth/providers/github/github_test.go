@@ -100,7 +100,7 @@ func newGitHubTestProvider(t *testing.T, userInfoBody, emailBody string, emailSt
 
 func queryFromBeginAuth(t *testing.T, p *github.Provider) url.Values {
 	t.Helper()
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -137,7 +137,7 @@ func TestGitHubNewWithAdditionalScopes(t *testing.T) {
 func TestGitHubNewWithEndpoint(t *testing.T) {
 	endpoint := oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}
 	p := github.New("id", "secret", "redirect", github.WithEndpoint(endpoint))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -152,7 +152,7 @@ func TestGitHubNewWithUserInfoURL(t *testing.T) {
 	client := server.Client()
 	client.Transport = &githubEmailTransport{base: client.Transport, status: http.StatusOK, body: `[]`}
 	p := github.New("id", "secret", "redirect", github.WithEndpoint(endpoint), github.WithUserInfoURL(server.URL+"/userinfo"), github.WithHTTPClient(client))
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -175,7 +175,7 @@ func TestGitHubNewWithHTTPClient(t *testing.T) {
 		github.WithUserInfoURL("http://oauth.test/userinfo"),
 		github.WithHTTPClient(client),
 	)
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -195,7 +195,7 @@ func TestGitHubName(t *testing.T) {
 
 func TestGitHubBeginAuthIncludesState(t *testing.T) {
 	p := github.New("id", "secret", "http://example.com/callback", github.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}))
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -213,7 +213,7 @@ func TestGitHubBeginAuthIncludesCustomOptions(t *testing.T) {
 		github.WithEndpoint(oauth2.Endpoint{AuthURL: "https://example.com/auth", TokenURL: "https://example.com/token"}),
 		github.WithAuthCodeOptions(oauth2.SetAuthURLParam("allow_signup", "false")),
 	)
-	authURL, err := p.BeginAuth("state")
+	authURL, err := p.BeginAuth("state", "")
 	if err != nil {
 		t.Fatalf("BeginAuth() error = %v", err)
 	}
@@ -228,7 +228,7 @@ func TestGitHubBeginAuthIncludesCustomOptions(t *testing.T) {
 
 func TestGitHubCompleteAuthRequiresCode(t *testing.T) {
 	p := github.New("id", "secret", "redirect")
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback", nil), "")
 	if !errors.Is(err, oauth.ErrMissingCode) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, oauth.ErrMissingCode)
 	}
@@ -237,7 +237,7 @@ func TestGitHubCompleteAuthRequiresCode(t *testing.T) {
 func TestGitHubCompleteAuthFetchesUserInfo(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 }
@@ -245,7 +245,7 @@ func TestGitHubCompleteAuthFetchesUserInfo(t *testing.T) {
 func TestGitHubCompleteAuthMapsIdentity(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com","login":"octo","name":"Octo","avatar_url":"https://example.com/avatar.png"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -258,7 +258,7 @@ func TestGitHubCompleteAuthMapsIdentity(t *testing.T) {
 func TestGitHubCompleteAuthSetsProvider(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -270,7 +270,7 @@ func TestGitHubCompleteAuthSetsProvider(t *testing.T) {
 func TestGitHubCompleteAuthReturnsCredentials(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -282,7 +282,7 @@ func TestGitHubCompleteAuthReturnsCredentials(t *testing.T) {
 func TestGitHubCompleteAuthPreservesRawData(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -294,7 +294,7 @@ func TestGitHubCompleteAuthPreservesRawData(t *testing.T) {
 func TestGitHubCompleteAuthRequiresUserID(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"email":"user@example.com"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if !errors.Is(err, oauth.ErrMissingUserID) {
 		t.Fatalf("CompleteAuth() error = %v, want %v", err, oauth.ErrMissingUserID)
 	}
@@ -303,14 +303,14 @@ func TestGitHubCompleteAuthRequiresUserID(t *testing.T) {
 func TestGitHubCompleteAuthReturnsOAuthErrors(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":"user@example.com"}`, `[]`, http.StatusOK)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=bad", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=bad", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() exchange error = nil, want error")
 	}
 
 	p, server, _ = newGitHubTestProvider(t, `nope`, `[]`, http.StatusOK)
 	defer server.Close()
-	_, err = p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err = p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() userinfo error = nil, want error")
 	}
@@ -321,7 +321,7 @@ func TestGitHubCompleteAuthPrefersVerifiedPrimaryOverProfileEmail(t *testing.T) 
 	// from the emails endpoint must win even when a profile email is present.
 	p, server, transport := newGitHubTestProvider(t, `{"id":123,"email":"profile@example.com"}`, `[{"email":"primary@example.com","primary":true,"verified":true}]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -336,7 +336,7 @@ func TestGitHubCompleteAuthPrefersVerifiedPrimaryOverProfileEmail(t *testing.T) 
 func TestGitHubCompleteAuthFetchesPrimaryEmail(t *testing.T) {
 	p, server, transport := newGitHubTestProvider(t, `{"id":123,"email":""}`, `[{"email":"primary@example.com","primary":true,"verified":true}]`, http.StatusOK)
 	defer server.Close()
-	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil)); err != nil {
+	if _, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), ""); err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
 	if transport.emailCalls != 1 {
@@ -350,7 +350,7 @@ func TestGitHubCompleteAuthUsesPrimaryVerifiedEmail(t *testing.T) {
 		{"email":"primary@example.com","primary":true,"verified":true}
 	]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -364,7 +364,7 @@ func TestGitHubCompleteAuthReturnsUnverifiedPrimaryEmail(t *testing.T) {
 	// caller won't trust it for account linking.
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":""}`, `[{"email":"primary@example.com","primary":true,"verified":false}]`, http.StatusOK)
 	defer server.Close()
-	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	got, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
@@ -376,7 +376,7 @@ func TestGitHubCompleteAuthReturnsUnverifiedPrimaryEmail(t *testing.T) {
 func TestGitHubCompleteAuthReturnsEmailEndpointStatusError(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":""}`, `nope`, http.StatusInternalServerError)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() error = nil, want email endpoint status error")
 	}
@@ -385,7 +385,7 @@ func TestGitHubCompleteAuthReturnsEmailEndpointStatusError(t *testing.T) {
 func TestGitHubCompleteAuthReturnsEmailEndpointJSONError(t *testing.T) {
 	p, server, _ := newGitHubTestProvider(t, `{"id":123,"email":""}`, `{`, http.StatusOK)
 	defer server.Close()
-	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil))
+	_, err := p.CompleteAuth(httptest.NewRequest(http.MethodGet, "/callback?code=ok", nil), "")
 	if err == nil {
 		t.Fatal("CompleteAuth() error = nil, want email endpoint JSON error")
 	}
