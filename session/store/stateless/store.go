@@ -35,6 +35,9 @@ func (s *Store) Save(ctx context.Context, sess *session.Session) error {
 	return nil
 }
 
+// Delete is a no-op: a stateless session has no server-side record to remove,
+// so logout only clears the cookie (done by the Manager) and the signed token
+// stays valid until it expires. See the package doc on revocation.
 func (s *Store) Delete(ctx context.Context, id session.SessionID) error {
 	return nil
 }
