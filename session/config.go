@@ -43,6 +43,7 @@ func WithNow(now func() time.Time) Option {
 func defaultConfig() Config {
 	return Config{
 		CookieName: "session",
+		Secure:     true,
 		HttpOnly:   true,
 		SameSite:   http.SameSiteLaxMode,
 		Path:       "/",

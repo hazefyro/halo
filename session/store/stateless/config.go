@@ -1,14 +1,14 @@
 package stateless
 
 import (
-	"net/http"
 	"time"
 
 	session "github.com/hazefyro/auth/session"
 )
 
+// Config configures the stateless store. Cookie attributes are set on the
+// session.Manager, not here.
 type Config struct {
-	session.Config
 	SigningKey []byte
 	TTL        time.Duration
 	Issuer     string
@@ -30,14 +30,6 @@ func WithIssuer(issuer string) Option {
 
 func defaultConfig() Config {
 	return Config{
-		Config: session.Config{
-			CookieName: "session",
-			Secure:     true,
-			HttpOnly:   true,
-			SameSite:   http.SameSiteLaxMode,
-			Path:       "/",
-			Now:        time.Now,
-		},
 		TTL:    24 * time.Hour,
 		Issuer: "session",
 	}
