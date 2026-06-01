@@ -5,31 +5,39 @@ import (
 	"errors"
 )
 
-type resultKey struct{}
+type tokensKey struct{}
 
-func storeResultInContext(ctx context.Context, result AuthResult) context.Context {
-	return context.WithValue(ctx, resultKey{}, result)
+// oauthData is the OAuth-specific part of a completed callback that rides in the
+// request context. Identity is deliberately absent — it lives under the root
+// auth package's key via [auth.StoreIdentityInContext].
+type oauthData struct {
+	Credentials Credentials
+	RawData     RawData
 }
 
-func resultFromContext(ctx context.Context) (AuthResult, bool) {
-	r, ok := ctx.Value(resultKey{}).(AuthResult)
-	return r, ok
+func storeTokensInContext(ctx context.Context, d oauthData) context.Context {
+	return context.WithValue(ctx, tokensKey{}, d)
+}
+
+func tokensFromContext(ctx context.Context) (oauthData, bool) {
+	d, ok := ctx.Value(tokensKey{}).(oauthData)
+	return d, ok
 }
 
 // CredentialsFromContext returns the OAuth credentials stored by [Registry.Callback].
 func CredentialsFromContext(ctx context.Context) (Credentials, error) {
-	r, ok := resultFromContext(ctx)
-	if !ok || r.Credentials.AccessToken == "" {
+	d, ok := tokensFromContext(ctx)
+	if !ok || d.Credentials.AccessToken == "" {
 		return Credentials{}, errors.New("oauth: no credentials in context")
 	}
-	return r.Credentials, nil
+	return d.Credentials, nil
 }
 
 // RawDataFromContext returns the provider's raw userinfo stored by [Registry.Callback].
 func RawDataFromContext(ctx context.Context) (RawData, error) {
-	r, ok := resultFromContext(ctx)
-	if !ok || r.RawData == nil {
+	d, ok := tokensFromContext(ctx)
+	if !ok || d.RawData == nil {
 		return nil, errors.New("oauth: no raw data in context")
 	}
-	return r.RawData, nil
+	return d.RawData, nil
 }

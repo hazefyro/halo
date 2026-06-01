@@ -118,7 +118,7 @@ func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerNa
 	}
 
 	ctx := auth.StoreIdentityInContext(req.Context(), result.Identity)
-	ctx = storeResultInContext(ctx, result)
+	ctx = storeTokensInContext(ctx, oauthData{Credentials: result.Credentials, RawData: result.RawData})
 	next.ServeHTTP(w, req.WithContext(ctx))
 	return nil
 }
