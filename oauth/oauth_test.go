@@ -1,7 +1,6 @@
 package oauth_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -258,20 +257,12 @@ func TestBeginAuthReturnsStateStoreError(t *testing.T) {
 	}
 }
 
-func TestCallbackRequiresNextHandler(t *testing.T) {
-	r := newTestRegistry(t, &fakeProvider{name: "google"}, &fakeStateStore{})
-	err := r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback", nil), "google", nil)
-	if err == nil {
-		t.Fatal("Callback() error = nil, want error")
-	}
-}
-
 func TestCallbackReturnsErrProviderNotFound(t *testing.T) {
 	r, err := oauth.New(oauth.WithStateStore(&fakeStateStore{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	err = r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback", nil), "missing", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	_, err = r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback", nil), "missing")
 	if !errors.Is(err, oauth.ErrProviderNotFound) {
 		t.Fatalf("Callback() error = %v, want %v", err, oauth.ErrProviderNotFound)
 	}
@@ -280,7 +271,7 @@ func TestCallbackReturnsErrProviderNotFound(t *testing.T) {
 func TestCallbackReturnsCallbackErrorFromQuery(t *testing.T) {
 	r := newTestRegistry(t, &fakeProvider{name: "google"}, &fakeStateStore{})
 	req := httptest.NewRequest(http.MethodGet, "/callback?error=access_denied&error_description=nope", nil)
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	_, err := r.Callback(httptest.NewRecorder(), req, "google")
 	var callbackErr *oauth.CallbackError
 	if !errors.As(err, &callbackErr) {
 		t.Fatalf("Callback() error = %T, want *CallbackError", err)
@@ -295,8 +286,7 @@ func TestCallbackVerifiesStateBeforeCompleteAuth(t *testing.T) {
 	store := &fakeStateStore{}
 	r := newTestRegistry(t, p, store)
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil)
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	if err != nil {
+	if _, err := r.Callback(httptest.NewRecorder(), req, "google"); err != nil {
 		t.Fatalf("Callback() error = %v", err)
 	}
 	if store.verifyState != "abc" || store.verifyProvider != "google" {
@@ -312,7 +302,7 @@ func TestCallbackReturnsErrStateMismatch(t *testing.T) {
 	store := &fakeStateStore{verifyErr: oauth.ErrStateMismatch}
 	r := newTestRegistry(t, p, store)
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=bad&code=ok", nil)
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	_, err := r.Callback(httptest.NewRecorder(), req, "google")
 	if !errors.Is(err, oauth.ErrStateMismatch) {
 		t.Fatalf("Callback() error = %v, want %v", err, oauth.ErrStateMismatch)
 	}
@@ -325,8 +315,7 @@ func TestCallbackClearsStateAfterVerification(t *testing.T) {
 	store := &fakeStateStore{}
 	r := newTestRegistry(t, &fakeProvider{name: "google"}, store)
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil)
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	if err != nil {
+	if _, err := r.Callback(httptest.NewRecorder(), req, "google"); err != nil {
 		t.Fatalf("Callback() error = %v", err)
 	}
 	if store.clearProvider != "google" {
@@ -338,8 +327,7 @@ func TestCallbackCallsCompleteAuth(t *testing.T) {
 	p := &fakeProvider{name: "google"}
 	r := newTestRegistry(t, p, &fakeStateStore{})
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil)
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	if err != nil {
+	if _, err := r.Callback(httptest.NewRecorder(), req, "google"); err != nil {
 		t.Fatalf("Callback() error = %v", err)
 	}
 	if !p.completeCalled {
@@ -351,20 +339,13 @@ func TestCallbackReturnsCompleteAuthError(t *testing.T) {
 	want := errors.New("complete failed")
 	p := &fakeProvider{name: "google", completeErr: want}
 	r := newTestRegistry(t, p, &fakeStateStore{})
-	nextCalled := false
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil)
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		nextCalled = true
-	}))
-	if !errors.Is(err, want) {
+	if _, err := r.Callback(httptest.NewRecorder(), req, "google"); !errors.Is(err, want) {
 		t.Fatalf("Callback() error = %v, want %v", err, want)
-	}
-	if nextCalled {
-		t.Fatal("next handler called after CompleteAuth error")
 	}
 }
 
-func TestCallbackStoresAuthResultInContext(t *testing.T) {
+func TestCallbackReturnsAuthResult(t *testing.T) {
 	result := oauth.AuthResult{
 		Identity:    halo.Identity{ID: "user-1", Provider: "google"},
 		Credentials: oauth.Credentials{AccessToken: "access-token"},
@@ -373,94 +354,14 @@ func TestCallbackStoresAuthResultInContext(t *testing.T) {
 	p := &fakeProvider{name: "google", result: result}
 	r := newTestRegistry(t, p, &fakeStateStore{})
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil)
-	nextCalled := false
-	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextCalled = true
-		identity, err := halo.IdentityFromContext(r.Context())
-		if err != nil {
-			t.Fatalf("IdentityFromContext() error = %v", err)
-		}
-		credentials, err := oauth.CredentialsFromContext(r.Context())
-		if err != nil {
-			t.Fatalf("CredentialsFromContext() error = %v", err)
-		}
-		raw, err := oauth.RawDataFromContext(r.Context())
-		if err != nil {
-			t.Fatalf("RawDataFromContext() error = %v", err)
-		}
-		if identity.ID != result.Identity.ID || credentials.AccessToken != result.Credentials.AccessToken || raw["id"] != result.RawData["id"] {
-			t.Fatalf("auth result accessors returned identity=%#v credentials=%#v raw=%#v", identity, credentials, raw)
-		}
-	}))
+	got, err := r.Callback(httptest.NewRecorder(), req, "google")
 	if err != nil {
 		t.Fatalf("Callback() error = %v", err)
 	}
-	if !nextCalled {
-		t.Fatal("next handler was not called")
-	}
-}
-
-func TestCredentialsFromContextMissing(t *testing.T) {
-	_, err := oauth.CredentialsFromContext(context.Background())
-	if err == nil {
-		t.Fatal("CredentialsFromContext() error = nil, want error")
-	}
-}
-
-func TestCredentialsFromContextEmptyAccessToken(t *testing.T) {
-	ctx := halo.StoreIdentityInContext(context.Background(), halo.Identity{ID: "user-1"})
-	_, err := oauth.CredentialsFromContext(ctx)
-	if err == nil {
-		t.Fatal("CredentialsFromContext() error = nil, want error")
-	}
-}
-
-func TestCredentialsFromContextReturnsCredentials(t *testing.T) {
-	result := oauth.AuthResult{
-		Identity:    halo.Identity{ID: "user-1"},
-		Credentials: oauth.Credentials{AccessToken: "access"},
-	}
-	p := &fakeProvider{name: "google", result: result}
-	r := newTestRegistry(t, p, &fakeStateStore{})
-	err := r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil), "google", http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		got, err := oauth.CredentialsFromContext(r.Context())
-		if err != nil {
-			t.Fatalf("CredentialsFromContext() error = %v", err)
-		}
-		if got.AccessToken != "access" {
-			t.Fatalf("access token = %q, want access", got.AccessToken)
-		}
-	}))
-	if err != nil {
-		t.Fatalf("Callback() error = %v", err)
-	}
-}
-
-func TestRawDataFromContextMissing(t *testing.T) {
-	_, err := oauth.RawDataFromContext(context.Background())
-	if err == nil {
-		t.Fatal("RawDataFromContext() error = nil, want error")
-	}
-}
-
-func TestRawDataFromContextReturnsRawData(t *testing.T) {
-	result := oauth.AuthResult{
-		Identity: halo.Identity{ID: "user-1"},
-		RawData:  oauth.RawData{"id": "user-1"},
-	}
-	p := &fakeProvider{name: "google", result: result}
-	r := newTestRegistry(t, p, &fakeStateStore{})
-	err := r.Callback(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=ok", nil), "google", http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		got, err := oauth.RawDataFromContext(r.Context())
-		if err != nil {
-			t.Fatalf("RawDataFromContext() error = %v", err)
-		}
-		if got["id"] != "user-1" {
-			t.Fatalf("raw id = %v, want user-1", got["id"])
-		}
-	}))
-	if err != nil {
-		t.Fatalf("Callback() error = %v", err)
+	if got.Identity.ID != result.Identity.ID ||
+		got.Credentials.AccessToken != result.Credentials.AccessToken ||
+		got.RawData["id"] != result.RawData["id"] {
+		t.Fatalf("Callback() result = %#v, want %#v", got, result)
 	}
 }
 
@@ -492,17 +393,7 @@ func TestRegistryOAuthFlow(t *testing.T) {
 	}
 
 	callbackReq := httptest.NewRequest(http.MethodGet, "/callback?state="+store.storeState+"&code=ok", nil)
-	nextCalled := false
-	err := r.Callback(httptest.NewRecorder(), callbackReq, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextCalled = true
-		if _, err := halo.IdentityFromContext(r.Context()); err != nil {
-			t.Fatalf("IdentityFromContext() error = %v", err)
-		}
-	}))
-	if err != nil {
+	if _, err := r.Callback(httptest.NewRecorder(), callbackReq, "google"); err != nil {
 		t.Fatalf("Callback() error = %v", err)
-	}
-	if !nextCalled {
-		t.Fatal("next handler was not called")
 	}
 }

@@ -70,7 +70,13 @@ func (m *Manager) Touch(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	return m.refresh(w, r, s)
+}
 
+// refresh extends an already-loaded session in the store and rewrites its
+// cookie. Callers that have just loaded the session (such as RequireAuth) use
+// this to avoid a redundant store read.
+func (m *Manager) refresh(w http.ResponseWriter, r *http.Request, s *Session) error {
 	c, err := r.Cookie(m.cfg.CookieName)
 	if err != nil {
 		return ErrSessionNotFound

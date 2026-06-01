@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/hazefyro/halo"
 	"github.com/hazefyro/halo/oauth/internal/randstate"
 )
 
@@ -85,40 +84,31 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 	return nil
 }
 
-// Callback verifies OAuth state, completes provider auth, and calls next.
+// Callback verifies OAuth state and completes the provider exchange, returning
+// the [AuthResult] — the authenticated identity together with the OAuth tokens
+// and raw userinfo.
 //
-// On success it stores the authenticated identity in the request context via
-// [halo.StoreIdentityInContext] and the OAuth tokens and raw userinfo under the
-// accessors [CredentialsFromContext] and [RawDataFromContext].
-func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string, next http.Handler) error {
-	if next == nil {
-		return errors.New("oauth: next handler must not be nil")
-	}
-
+// The result's Identity is a data-transfer object: the caller maps it to a user
+// in its own store and establishes a session. This package deliberately does
+// not touch sessions or the request context, so an application can combine
+// OAuth with other login methods (password, ...) on equal terms.
+func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string) (AuthResult, error) {
 	p, err := r.Get(providerName)
 	if err != nil {
-		return err
+		return AuthResult{}, err
 	}
 
 	if code := req.URL.Query().Get("error"); code != "" {
-		return &CallbackError{
+		return AuthResult{}, &CallbackError{
 			Code:        code,
 			Description: req.URL.Query().Get("error_description"),
 		}
 	}
 
 	if err := r.stateStore.Verify(req, req.URL.Query().Get("state"), p.Name()); err != nil {
-		return err
+		return AuthResult{}, err
 	}
 	r.stateStore.Clear(w, p.Name())
 
-	result, err := p.CompleteAuth(req)
-	if err != nil {
-		return err
-	}
-
-	ctx := halo.StoreIdentityInContext(req.Context(), result.Identity)
-	ctx = storeTokensInContext(ctx, oauthData{Credentials: result.Credentials, RawData: result.RawData})
-	next.ServeHTTP(w, req.WithContext(ctx))
-	return nil
+	return p.CompleteAuth(req)
 }

@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/hazefyro/halo"
 	"github.com/hazefyro/halo/oauth"
 	"github.com/hazefyro/halo/oauth/providers/google"
 	"github.com/hazefyro/halo/session"
@@ -81,38 +80,33 @@ func main() {
 		}
 	})
 
-	// OAuth callback: Callback verifies state, exchanges the code, puts the
-	// identity in the request context, and calls our handler. We turn that
-	// identity into a session and redirect.
+	// OAuth callback: Callback verifies state and exchanges the code, returning
+	// the authenticated identity. The identity is just a DTO — we map it to a
+	// user and create a session, which is what actually keeps us logged in.
 	mux.HandleFunc("GET /auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
-		err := registry.Callback(w, r, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id, err := halo.IdentityFromContext(r.Context())
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			// In a real app you'd look up / upsert the user in your DB here and
-			// use your own user ID. We just key the session by the Google ID.
-			if _, err := sessions.Create(r.Context(), w, id.ID); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			http.Redirect(w, r, "/me", http.StatusSeeOther)
-		}))
+		result, err := registry.Callback(w, r, "google")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-	})
-
-	// Protected: read the session back from its cookie.
-	mux.HandleFunc("GET /me", func(w http.ResponseWriter, r *http.Request) {
-		s, err := sessions.Load(r)
-		if err != nil {
-			http.Redirect(w, r, "/login/google", http.StatusSeeOther)
 			return
 		}
-		fmt.Fprintf(w, "logged in as user %s\n<a href=\"/logout\">log out</a>", s.UserID)
+		// In a real app you'd look up / upsert the user in your DB here and use
+		// your own user ID. We just key the session by the Google ID.
+		if _, err := sessions.Create(r.Context(), w, result.Identity.ID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/me", http.StatusSeeOther)
 	})
+
+	// Protected: RequireAuth loads the session and rejects requests without one.
+	// Unauthenticated visitors are redirected to the login page; the handler
+	// reads the active session from the request context.
+	mux.Handle("GET /me", sessions.RequireAuth(session.WithLoginRedirect("/login/google"))(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s, _ := session.FromContext(r.Context())
+			fmt.Fprintf(w, "logged in as user %s\n<a href=\"/logout\">log out</a>", s.UserID)
+		}),
+	))
 
 	mux.HandleFunc("GET /logout", func(w http.ResponseWriter, r *http.Request) {
 		if err := sessions.Delete(w, r); err != nil {
