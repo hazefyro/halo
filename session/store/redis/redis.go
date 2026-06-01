@@ -62,7 +62,12 @@ func (s *Store) Touch(ctx context.Context, sess *session.Session, now time.Time)
 	sess.LastSeenAt = now
 	sess.ExpiresAt = now.Add(s.cfg.TTL)
 
-	if err := s.cfg.Client.Set(ctx, s.key(sess.ID), sess, s.cfg.TTL).Err(); err != nil {
+	data, err := json.Marshal(sess)
+	if err != nil {
+		return fmt.Errorf("redis: marshal session: %w", err)
+	}
+
+	if err := s.cfg.Client.Set(ctx, s.key(sess.ID), data, s.cfg.TTL).Err(); err != nil {
 		return fmt.Errorf("redis: touch session: %w", err)
 	}
 

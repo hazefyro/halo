@@ -267,7 +267,9 @@ func TestManagerLoadRejectsExpiredSession(t *testing.T) {
 func TestManagerTouchUpdatesStoreAndCookie(t *testing.T) {
 	now := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
 	sess := &session.Session{ID: "raw-id", ExpiresAt: now.Add(time.Hour)}
-	store := &fakeStore{ttl: 2 * time.Hour, getSession: sess}
+	// encoded is the freshly re-encoded value the touched session produces;
+	// the cookie must carry it, not the stale request cookie value.
+	store := &fakeStore{ttl: 2 * time.Hour, getSession: sess, encoded: "refreshed-session"}
 	manager := newManager(t, store,
 		session.WithNow(func() time.Time { return now }),
 		session.WithCookieName("auth_session"),
@@ -275,7 +277,7 @@ func TestManagerTouchUpdatesStoreAndCookie(t *testing.T) {
 		session.WithPath("/app"),
 	)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.AddCookie(&http.Cookie{Name: "auth_session", Value: "encoded-session"})
+	req.AddCookie(&http.Cookie{Name: "auth_session", Value: "stale-session"})
 	w := httptest.NewRecorder()
 
 	if err := manager.Touch(w, req); err != nil {
@@ -286,7 +288,7 @@ func TestManagerTouchUpdatesStoreAndCookie(t *testing.T) {
 		t.Fatalf("Touch() store touched session=%#v at=%v", store.touched, store.touchedAt)
 	}
 	cookie := firstCookie(t, w)
-	if cookie.Name != "auth_session" || cookie.Value != "encoded-session" || cookie.Path != "/app" || cookie.MaxAge != 7200 || !cookie.Secure {
+	if cookie.Name != "auth_session" || cookie.Value != "refreshed-session" || cookie.Path != "/app" || cookie.MaxAge != 7200 || !cookie.Secure {
 		t.Fatalf("cookie = %#v", cookie)
 	}
 }

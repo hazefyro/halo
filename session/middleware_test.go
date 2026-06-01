@@ -122,6 +122,7 @@ func TestRequireAuthSlidingExpiryTouchesSession(t *testing.T) {
 	now := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
 	store := validSessionStore()
 	store.getSession.ExpiresAt = now.Add(time.Hour)
+	store.encoded = "refreshed-session"
 	manager := newManager(t, store, session.WithNow(func() time.Time { return now }))
 	w := httptest.NewRecorder()
 
@@ -135,8 +136,13 @@ func TestRequireAuthSlidingExpiryTouchesSession(t *testing.T) {
 	if store.touched != store.getSession || !store.touchedAt.Equal(now) {
 		t.Fatalf("sliding expiry did not Touch session: touched=%#v at=%v", store.touched, store.touchedAt)
 	}
-	if c := firstCookie(t, w); c.MaxAge != 3600 {
+	c := firstCookie(t, w)
+	if c.MaxAge != 3600 {
 		t.Fatalf("refreshed cookie MaxAge = %d, want 3600", c.MaxAge)
+	}
+	// The cookie must carry the freshly encoded session, not the stale value.
+	if c.Value != "refreshed-session" {
+		t.Fatalf("refreshed cookie value = %q, want refreshed-session", c.Value)
 	}
 }
 

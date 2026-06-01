@@ -76,19 +76,24 @@ func (m *Manager) Touch(w http.ResponseWriter, r *http.Request) error {
 // refresh extends an already-loaded session in the store and rewrites its
 // cookie. Callers that have just loaded the session (such as RequireAuth) use
 // this to avoid a redundant store read.
+//
+// The cookie is re-encoded from the touched session rather than reused: a
+// stateless store carries its expiry inside the cookie value, so reusing the
+// old value would leave the embedded expiry unchanged and make sliding expiry
+// a silent no-op. Opaque-ID stores simply re-emit the same identifier.
 func (m *Manager) refresh(w http.ResponseWriter, r *http.Request, s *Session) error {
-	c, err := r.Cookie(m.cfg.CookieName)
-	if err != nil {
-		return ErrSessionNotFound
+	if err := m.store.Touch(r.Context(), s, m.cfg.Now()); err != nil {
+		return fmt.Errorf("session: touch failed: %w", err)
 	}
 
-	if err := m.store.Touch(r.Context(), s, m.cfg.Now()); err != nil {
+	value, err := m.store.Encode(s)
+	if err != nil {
 		return fmt.Errorf("session: touch failed: %w", err)
 	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     m.cfg.CookieName,
-		Value:    c.Value,
+		Value:    value,
 		Path:     m.cfg.Path,
 		MaxAge:   int(m.store.TTL().Seconds()),
 		Secure:   m.cfg.Secure,
