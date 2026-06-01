@@ -11,7 +11,7 @@ import (
 	"github.com/hazefyro/halo/session/store/stateless"
 )
 
-var signingKey = []byte("test-signing-key")
+var signingKey = []byte("test-signing-key-1234567890123456")
 
 func newStore(t *testing.T, opts ...stateless.Option) *stateless.Store {
 	t.Helper()
@@ -37,6 +37,16 @@ func TestNewRequiresSigningKey(t *testing.T) {
 	store, err := stateless.New()
 	if !errors.Is(err, session.ErrMissingSigningKey) {
 		t.Fatalf("New() error = %v, want %v", err, session.ErrMissingSigningKey)
+	}
+	if store != nil {
+		t.Fatalf("New() store = %#v, want nil", store)
+	}
+}
+
+func TestNewRejectsWeakSigningKey(t *testing.T) {
+	store, err := stateless.New(stateless.WithSigningKey([]byte("too-short")))
+	if !errors.Is(err, session.ErrWeakSigningKey) {
+		t.Fatalf("New() error = %v, want %v", err, session.ErrWeakSigningKey)
 	}
 	if store != nil {
 		t.Fatalf("New() store = %#v, want nil", store)

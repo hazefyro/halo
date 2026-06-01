@@ -47,6 +47,9 @@ func (c Config) validate() error {
 	if len(c.SigningKey) == 0 {
 		return session.ErrMissingSigningKey
 	}
+	if len(c.SigningKey) < 32 {
+		return session.ErrWeakSigningKey
+	}
 	if c.TTL <= 0 {
 		return session.ErrInvalidTTL
 	}
