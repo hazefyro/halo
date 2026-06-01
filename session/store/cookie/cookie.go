@@ -31,7 +31,7 @@ func New(opts ...Option) (*Store, error) {
 	}, nil
 }
 
-func (s *Store) Save(ctx context.Context, session *session.Session) error {
+func (s *Store) Save(ctx context.Context, sess *session.Session) error {
 	return nil
 }
 
