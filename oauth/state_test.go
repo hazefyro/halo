@@ -45,20 +45,10 @@ func TestNewCookieStateStoreCreatesSecureStore(t *testing.T) {
 	}
 }
 
-func TestNewInsecureCookieStateStoreRejectsShortSecret(t *testing.T) {
-	store, err := oauth.NewInsecureCookieStateStore("short")
-	if err == nil {
-		t.Fatal("NewInsecureCookieStateStore() error = nil, want error")
-	}
-	if store != nil {
-		t.Fatalf("store = %#v, want nil", store)
-	}
-}
-
-func TestNewInsecureCookieStateStoreCreatesInsecureStore(t *testing.T) {
-	store, err := oauth.NewInsecureCookieStateStore(testSecret)
+func TestNewCookieStateStoreWithSecureFalse(t *testing.T) {
+	store, err := oauth.NewCookieStateStore(testSecret, oauth.WithSecure(false))
 	if err != nil {
-		t.Fatalf("NewInsecureCookieStateStore() error = %v", err)
+		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
 	cookie := storedCookie(t, store, "state", "google")
 	if cookie.Secure {
@@ -113,9 +103,9 @@ func TestCookieStateStoreStoreSetsSecureFlag(t *testing.T) {
 }
 
 func TestCookieStateStoreStoreClearsSecureFlagForInsecureStore(t *testing.T) {
-	store, err := oauth.NewInsecureCookieStateStore(testSecret)
+	store, err := oauth.NewCookieStateStore(testSecret, oauth.WithSecure(false))
 	if err != nil {
-		t.Fatalf("NewInsecureCookieStateStore() error = %v", err)
+		t.Fatalf("NewCookieStateStore() error = %v", err)
 	}
 	if cookie := storedCookie(t, store, "state", "google"); cookie.Secure {
 		t.Fatal("Secure = true, want false")

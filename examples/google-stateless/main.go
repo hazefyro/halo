@@ -40,7 +40,7 @@ func main() {
 	// Insecure store = non-Secure cookies, fine for http://localhost.
 	// Use the secure variant behind HTTPS.
 	// The secret must be >= 32 bytes.
-	stateStore, err := oauth.NewInsecureCookieStateStore("dev-oauth-state-secret-change-me!")
+	stateStore, err := oauth.NewCookieStateStore("dev-oauth-state-secret-change-me!", oauth.WithSecure(false))
 	if err != nil {
 		log.Fatal(err)
 	}

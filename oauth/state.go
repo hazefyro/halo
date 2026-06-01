@@ -23,20 +23,25 @@ type CookieStateStore struct {
 	secure bool
 }
 
-// NewCookieStateStore creates a secure cookie-backed state store.
-func NewCookieStateStore(secret string) (*CookieStateStore, error) {
-	if len(secret) < 32 {
-		return nil, errors.New("goauth: CookieStateStore secret must be at least 32 bytes")
-	}
-	return &CookieStateStore{secret: []byte(secret), secure: true}, nil
+// CookieOption configures a CookieStateStore.
+type CookieOption func(*CookieStateStore)
+
+// WithSecure sets the Secure flag on the state cookie (default true).
+func WithSecure(secure bool) CookieOption {
+	return func(s *CookieStateStore) { s.secure = secure }
 }
 
-// NewInsecureCookieStateStore creates a non-secure cookie-backed state store.
-func NewInsecureCookieStateStore(secret string) (*CookieStateStore, error) {
+// NewCookieStateStore creates a cookie-backed state store with Secure cookies
+// by default.
+func NewCookieStateStore(secret string, opts ...CookieOption) (*CookieStateStore, error) {
 	if len(secret) < 32 {
-		return nil, errors.New("goauth: CookieStateStore secret must be at least 32 bytes")
+		return nil, errors.New("oauth: CookieStateStore secret must be at least 32 bytes")
 	}
-	return &CookieStateStore{secret: []byte(secret), secure: false}, nil
+	s := &CookieStateStore{secret: []byte(secret), secure: true}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 func (s *CookieStateStore) cookieName(provider string) string {

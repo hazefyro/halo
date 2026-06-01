@@ -8,7 +8,6 @@ import (
 )
 
 type Config struct {
-	Config    session.Config
 	Client    redis.Cmdable
 	TTL       time.Duration
 	KeyPrefix string
