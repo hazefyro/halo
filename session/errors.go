@@ -10,4 +10,5 @@ var (
 	ErrSessionExpired    = errors.New("session: session expired")
 	ErrSessionNotFound   = errors.New("session: session not found")
 	ErrInvalidSession    = errors.New("session: invalid session")
+	ErrNilClient         = errors.New("session: client must be set")
 )
