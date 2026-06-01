@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/oauth"
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/oauth"
 )
 
 type fakeProvider struct {
@@ -43,7 +43,7 @@ func (p *fakeProvider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 		return p.result, nil
 	}
 	return oauth.AuthResult{
-		Identity:    auth.Identity{ID: "user-1", Provider: p.name},
+		Identity:    halo.Identity{ID: "user-1", Provider: p.name},
 		Credentials: oauth.Credentials{AccessToken: "access-token"},
 		RawData:     oauth.RawData{"id": "user-1"},
 	}, nil
@@ -366,7 +366,7 @@ func TestCallbackReturnsCompleteAuthError(t *testing.T) {
 
 func TestCallbackStoresAuthResultInContext(t *testing.T) {
 	result := oauth.AuthResult{
-		Identity:    auth.Identity{ID: "user-1", Provider: "google"},
+		Identity:    halo.Identity{ID: "user-1", Provider: "google"},
 		Credentials: oauth.Credentials{AccessToken: "access-token"},
 		RawData:     oauth.RawData{"id": "user-1"},
 	}
@@ -376,7 +376,7 @@ func TestCallbackStoresAuthResultInContext(t *testing.T) {
 	nextCalled := false
 	err := r.Callback(httptest.NewRecorder(), req, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		identity, err := auth.IdentityFromContext(r.Context())
+		identity, err := halo.IdentityFromContext(r.Context())
 		if err != nil {
 			t.Fatalf("IdentityFromContext() error = %v", err)
 		}
@@ -408,7 +408,7 @@ func TestCredentialsFromContextMissing(t *testing.T) {
 }
 
 func TestCredentialsFromContextEmptyAccessToken(t *testing.T) {
-	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{ID: "user-1"})
+	ctx := halo.StoreIdentityInContext(context.Background(), halo.Identity{ID: "user-1"})
 	_, err := oauth.CredentialsFromContext(ctx)
 	if err == nil {
 		t.Fatal("CredentialsFromContext() error = nil, want error")
@@ -417,7 +417,7 @@ func TestCredentialsFromContextEmptyAccessToken(t *testing.T) {
 
 func TestCredentialsFromContextReturnsCredentials(t *testing.T) {
 	result := oauth.AuthResult{
-		Identity:    auth.Identity{ID: "user-1"},
+		Identity:    halo.Identity{ID: "user-1"},
 		Credentials: oauth.Credentials{AccessToken: "access"},
 	}
 	p := &fakeProvider{name: "google", result: result}
@@ -445,7 +445,7 @@ func TestRawDataFromContextMissing(t *testing.T) {
 
 func TestRawDataFromContextReturnsRawData(t *testing.T) {
 	result := oauth.AuthResult{
-		Identity: auth.Identity{ID: "user-1"},
+		Identity: halo.Identity{ID: "user-1"},
 		RawData:  oauth.RawData{"id": "user-1"},
 	}
 	p := &fakeProvider{name: "google", result: result}
@@ -495,7 +495,7 @@ func TestRegistryOAuthFlow(t *testing.T) {
 	nextCalled := false
 	err := r.Callback(httptest.NewRecorder(), callbackReq, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		if _, err := auth.IdentityFromContext(r.Context()); err != nil {
+		if _, err := halo.IdentityFromContext(r.Context()); err != nil {
 			t.Fatalf("IdentityFromContext() error = %v", err)
 		}
 	}))

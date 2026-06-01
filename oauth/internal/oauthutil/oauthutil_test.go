@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazefyro/auth/oauth/internal/oauthutil"
+	"github.com/hazefyro/halo/oauth/internal/oauthutil"
 	"golang.org/x/oauth2"
 )
 

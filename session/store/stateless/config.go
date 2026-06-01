@@ -3,7 +3,7 @@ package stateless
 import (
 	"time"
 
-	session "github.com/hazefyro/auth/session"
+	session "github.com/hazefyro/halo/session"
 )
 
 // Config configures the stateless store. Cookie attributes are set on the

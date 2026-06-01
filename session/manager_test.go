@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazefyro/auth/session"
+	"github.com/hazefyro/halo/session"
 )
 
 type fakeStore struct {

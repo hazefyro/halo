@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/hazefyro/auth/session"
-	"github.com/hazefyro/auth/session/store/stateless"
+	"github.com/hazefyro/halo/session"
+	"github.com/hazefyro/halo/session/store/stateless"
 )
 
 var signingKey = []byte("test-signing-key")

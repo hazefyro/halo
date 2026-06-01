@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/hazefyro/auth/oauth/internal/hmacutil"
+	"github.com/hazefyro/halo/oauth/internal/hmacutil"
 )
 
 // StateStore stores and verifies OAuth state values.

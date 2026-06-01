@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/oauth/internal/randstate"
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/oauth/internal/randstate"
 )
 
 var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -88,7 +88,7 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 // Callback verifies OAuth state, completes provider auth, and calls next.
 //
 // On success it stores the authenticated identity in the request context via
-// [auth.StoreIdentityInContext] and the OAuth tokens and raw userinfo under the
+// [halo.StoreIdentityInContext] and the OAuth tokens and raw userinfo under the
 // accessors [CredentialsFromContext] and [RawDataFromContext].
 func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string, next http.Handler) error {
 	if next == nil {
@@ -117,7 +117,7 @@ func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerNa
 		return err
 	}
 
-	ctx := auth.StoreIdentityInContext(req.Context(), result.Identity)
+	ctx := halo.StoreIdentityInContext(req.Context(), result.Identity)
 	ctx = storeTokensInContext(ctx, oauthData{Credentials: result.Credentials, RawData: result.RawData})
 	next.ServeHTTP(w, req.WithContext(ctx))
 	return nil

@@ -9,7 +9,7 @@ type tokensKey struct{}
 
 // oauthData is the OAuth-specific part of a completed callback that rides in the
 // request context. Identity is deliberately absent — it lives under the root
-// auth package's key via [auth.StoreIdentityInContext].
+// halo package's key via [halo.StoreIdentityInContext].
 type oauthData struct {
 	Credentials Credentials
 	RawData     RawData

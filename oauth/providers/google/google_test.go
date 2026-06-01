@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/oauth"
-	"github.com/hazefyro/auth/oauth/providers/google"
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/oauth"
+	"github.com/hazefyro/halo/oauth/providers/google"
 	"golang.org/x/oauth2"
 )
 
@@ -233,7 +233,7 @@ func TestGoogleCompleteAuthMapsIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	want := auth.Identity{ID: "123", Email: "user@example.com", Name: "User", AvatarURL: "https://example.com/avatar.png", Provider: "google"}
+	want := halo.Identity{ID: "123", Email: "user@example.com", Name: "User", AvatarURL: "https://example.com/avatar.png", Provider: "google"}
 	if got.Identity != want {
 		t.Fatalf("Identity = %#v, want %#v", got.Identity, want)
 	}

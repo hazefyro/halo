@@ -7,11 +7,11 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/oauth"
-	"github.com/hazefyro/auth/oauth/internal/maputil"
-	"github.com/hazefyro/auth/oauth/internal/oauthutil"
-	"github.com/hazefyro/auth/oauth/internal/provideropts"
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/oauth"
+	"github.com/hazefyro/halo/oauth/internal/maputil"
+	"github.com/hazefyro/halo/oauth/internal/oauthutil"
+	"github.com/hazefyro/halo/oauth/internal/provideropts"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
@@ -118,7 +118,7 @@ func (p *Provider) CompleteAuth(r *http.Request) (oauth.AuthResult, error) {
 	}
 
 	return oauth.AuthResult{
-		Identity: auth.Identity{
+		Identity: halo.Identity{
 			ID:        id,
 			Email:     email,
 			Username:  maputil.GetString(raw, "login"),

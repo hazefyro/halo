@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/hazefyro/auth/oauth/internal/randstate"
+	"github.com/hazefyro/halo/oauth/internal/randstate"
 )
 
 func TestRandomStateFormat(t *testing.T) {

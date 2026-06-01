@@ -1,4 +1,4 @@
-package auth
+package halo
 
 // Identity is the normalized user identity produced by a login method.
 //

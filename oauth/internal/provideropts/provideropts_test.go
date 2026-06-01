@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hazefyro/auth/oauth/internal/provideropts"
+	"github.com/hazefyro/halo/oauth/internal/provideropts"
 	"golang.org/x/oauth2"
 )
 

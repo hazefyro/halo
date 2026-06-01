@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hazefyro/auth/session"
+	"github.com/hazefyro/halo/session"
 	"github.com/redis/go-redis/v9"
 )
 

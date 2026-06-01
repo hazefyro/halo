@@ -1,4 +1,4 @@
-package auth
+package halo
 
 import (
 	"context"
@@ -19,7 +19,7 @@ func StoreIdentityInContext(ctx context.Context, identity Identity) context.Cont
 func IdentityFromContext(ctx context.Context) (Identity, error) {
 	id, ok := ctx.Value(identityKey{}).(Identity)
 	if !ok {
-		return Identity{}, errors.New("auth: no identity in context")
+		return Identity{}, errors.New("halo: no identity in context")
 	}
 	return id, nil
 }

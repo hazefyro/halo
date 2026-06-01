@@ -1,4 +1,4 @@
-package auth_test
+package halo_test
 
 import (
 	"context"
@@ -7,19 +7,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazefyro/auth"
+	"github.com/hazefyro/halo"
 )
 
 func TestIdentityFromContextMissing(t *testing.T) {
-	_, err := auth.IdentityFromContext(context.Background())
+	_, err := halo.IdentityFromContext(context.Background())
 	if err == nil {
 		t.Fatal("IdentityFromContext() error = nil, want error")
 	}
 }
 
 func TestIdentityFromContextReturnsIdentity(t *testing.T) {
-	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{ID: "user-1"})
-	got, err := auth.IdentityFromContext(ctx)
+	ctx := halo.StoreIdentityInContext(context.Background(), halo.Identity{ID: "user-1"})
+	got, err := halo.IdentityFromContext(ctx)
 	if err != nil {
 		t.Fatalf("IdentityFromContext() error = %v", err)
 	}
@@ -29,8 +29,8 @@ func TestIdentityFromContextReturnsIdentity(t *testing.T) {
 }
 
 func TestStoreIdentityInContext(t *testing.T) {
-	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{ID: "user-1", Provider: "google"})
-	got, err := auth.IdentityFromContext(ctx)
+	ctx := halo.StoreIdentityInContext(context.Background(), halo.Identity{ID: "user-1", Provider: "google"})
+	got, err := halo.IdentityFromContext(ctx)
 	if err != nil {
 		t.Fatalf("IdentityFromContext() error = %v", err)
 	}
@@ -40,21 +40,21 @@ func TestStoreIdentityInContext(t *testing.T) {
 }
 
 func TestProviderFromContextReturnsProvider(t *testing.T) {
-	ctx := auth.StoreIdentityInContext(context.Background(), auth.Identity{Provider: "google"})
-	if got := auth.ProviderFromContext(ctx); got != "google" {
+	ctx := halo.StoreIdentityInContext(context.Background(), halo.Identity{Provider: "google"})
+	if got := halo.ProviderFromContext(ctx); got != "google" {
 		t.Fatalf("ProviderFromContext() = %q, want google", got)
 	}
 }
 
 func TestProviderFromContextMissing(t *testing.T) {
-	if got := auth.ProviderFromContext(context.Background()); got != "" {
+	if got := halo.ProviderFromContext(context.Background()); got != "" {
 		t.Fatalf("ProviderFromContext() = %q, want empty", got)
 	}
 }
 
 func TestAuthRequiredUnauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
-	auth.AuthRequired(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	halo.AuthRequired(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("next handler called")
 	})).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	if w.Code != http.StatusUnauthorized {
@@ -67,9 +67,9 @@ func TestAuthRequiredUnauthorized(t *testing.T) {
 
 func TestAuthRequiredAllowsAuthenticatedRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req = req.WithContext(auth.StoreIdentityInContext(req.Context(), auth.Identity{ID: "user-1"}))
+	req = req.WithContext(halo.StoreIdentityInContext(req.Context(), halo.Identity{ID: "user-1"}))
 	nextCalled := false
-	auth.AuthRequired(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	halo.AuthRequired(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		nextCalled = true
 	})).ServeHTTP(httptest.NewRecorder(), req)
 	if !nextCalled {

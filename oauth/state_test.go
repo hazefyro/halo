@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hazefyro/auth/oauth"
+	"github.com/hazefyro/halo/oauth"
 )
 
 const testSecret = "0123456789abcdef0123456789abcdef"

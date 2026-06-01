@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/oauth"
-	"github.com/hazefyro/auth/oauth/providers/github"
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/oauth"
+	"github.com/hazefyro/halo/oauth/providers/github"
 	"golang.org/x/oauth2"
 )
 
@@ -245,7 +245,7 @@ func TestGitHubCompleteAuthMapsIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteAuth() error = %v", err)
 	}
-	want := auth.Identity{ID: "123", Email: "user@example.com", Username: "octo", Name: "Octo", AvatarURL: "https://example.com/avatar.png", Provider: "github"}
+	want := halo.Identity{ID: "123", Email: "user@example.com", Username: "octo", Name: "Octo", AvatarURL: "https://example.com/avatar.png", Provider: "github"}
 	if got.Identity != want {
 		t.Fatalf("Identity = %#v, want %#v", got.Identity, want)
 	}

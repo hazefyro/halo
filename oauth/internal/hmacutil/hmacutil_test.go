@@ -3,7 +3,7 @@ package hmacutil_test
 import (
 	"testing"
 
-	"github.com/hazefyro/auth/oauth/internal/hmacutil"
+	"github.com/hazefyro/halo/oauth/internal/hmacutil"
 )
 
 func TestSignReturnsDeterministicHMAC(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hazefyro/auth/oauth"
+	"github.com/hazefyro/halo/oauth"
 	"golang.org/x/oauth2"
 )
 

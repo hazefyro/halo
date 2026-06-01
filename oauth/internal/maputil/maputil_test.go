@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/hazefyro/auth/oauth/internal/maputil"
+	"github.com/hazefyro/halo/oauth/internal/maputil"
 )
 
 func TestGetStringReturnsStringValue(t *testing.T) {

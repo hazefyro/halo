@@ -20,11 +20,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/hazefyro/auth"
-	"github.com/hazefyro/auth/oauth"
-	"github.com/hazefyro/auth/oauth/providers/google"
-	"github.com/hazefyro/auth/session"
-	"github.com/hazefyro/auth/session/store/stateless"
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/oauth"
+	"github.com/hazefyro/halo/oauth/providers/google"
+	"github.com/hazefyro/halo/session"
+	"github.com/hazefyro/halo/session/store/stateless"
 )
 
 const addr = "localhost:8080"
@@ -86,7 +86,7 @@ func main() {
 	// identity into a session and redirect.
 	mux.HandleFunc("GET /auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
 		err := registry.Callback(w, r, "google", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id, err := auth.IdentityFromContext(r.Context())
+			id, err := halo.IdentityFromContext(r.Context())
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
