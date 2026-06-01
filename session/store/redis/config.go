@@ -31,7 +31,7 @@ func WithKeyPrefix(keyPrefix string) Option {
 func defaultConfig() Config {
 	return Config{
 		TTL:       24 * time.Hour,
-		KeyPrefix: "session:",
+		KeyPrefix: "sess:",
 	}
 }
 
