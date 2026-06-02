@@ -29,6 +29,9 @@ type Identity struct {
 	// rename it over time. Scope it by Provider before using it as a key, and
 	// prefer mapping (Provider, ID) to your own user ID for a stable identifier.
 	Username string
-	AvatarURL     string
-	Provider      string // "google", "discord", "password", etc.
+	// PasswordHash is only populated by the password provider.
+	// Store it alongside the identity row; never expose it to the client.
+	PasswordHash string
+	AvatarURL    string
+	Provider     string // "google", "discord", "password", etc.
 }
