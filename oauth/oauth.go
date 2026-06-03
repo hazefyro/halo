@@ -1,10 +1,13 @@
 package oauth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"regexp"
 
+	"github.com/hazefyro/halo"
+	"github.com/hazefyro/halo/identity"
 	"github.com/hazefyro/halo/oauth/internal/randstate"
 	"golang.org/x/oauth2"
 )
@@ -15,6 +18,7 @@ var validProviderName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 type Registry struct {
 	providers  map[string]Provider
 	stateStore StateStore
+	store      Store
 }
 
 // Option configures a Registry.
@@ -23,6 +27,14 @@ type Option func(*Registry)
 // WithStateStore configures the state store used for OAuth state validation.
 func WithStateStore(s StateStore) Option {
 	return func(r *Registry) { r.stateStore = s }
+}
+
+// WithStore configures the identity store used to persist authenticated users.
+// When set, [Registry.Callback] looks up the identity by (provider, ID) and
+// creates it if absent. When unset, Callback does not persist anything and
+// returns the identity for the application to store itself.
+func WithStore(s Store) Option {
+	return func(r *Registry) { r.store = s }
 }
 
 // New creates a Registry.
@@ -88,13 +100,17 @@ func (r *Registry) BeginAuth(w http.ResponseWriter, req *http.Request, providerN
 }
 
 // Callback verifies OAuth state and completes the provider exchange, returning
-// the [AuthResult] — the authenticated identity together with the OAuth tokens
+// the [AuthResult]: the authenticated identity together with the OAuth tokens
 // and raw userinfo.
 //
-// The result's Identity is a data-transfer object: the caller maps it to a user
-// in its own store and establishes a session. This package deliberately does
-// not touch sessions or the request context, so an application can combine
-// OAuth with other login methods (password, ...) on equal terms.
+// When the Registry has a [Store] (see [WithStore]), Callback persists the
+// identity: it looks the identity up by (provider, ID) and creates it if
+// absent, and the returned AuthResult carries the stored identity. Without a
+// Store, the identity is returned unpersisted for the caller to map to a user
+// in its own store.
+//
+// Callback never establishes a session, so an application can combine OAuth
+// with other login methods (password, ...) on equal terms.
 func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerName string) (AuthResult, error) {
 	p, err := r.Get(providerName)
 	if err != nil {
@@ -114,5 +130,34 @@ func (r *Registry) Callback(w http.ResponseWriter, req *http.Request, providerNa
 	}
 	r.stateStore.Clear(w, p.Name())
 
-	return p.CompleteAuth(req, verifier)
+	result, err := p.CompleteAuth(req, verifier)
+	if err != nil {
+		return AuthResult{}, err
+	}
+
+	if r.store != nil {
+		stored, err := r.getOrCreate(req.Context(), p.Name(), result.Identity)
+		if err != nil {
+			return AuthResult{}, err
+		}
+		result.Identity = stored
+	}
+
+	return result, nil
+}
+
+// getOrCreate returns the stored identity for (provider, id.ID), creating it
+// from id when none exists yet.
+func (r *Registry) getOrCreate(ctx context.Context, provider string, id halo.Identity) (halo.Identity, error) {
+	stored, err := r.store.GetIdentityByProviderID(ctx, provider, id.ID)
+	if err == nil {
+		return stored, nil
+	}
+	if !errors.Is(err, identity.ErrNotFound) {
+		return halo.Identity{}, err
+	}
+	if err := r.store.CreateIdentity(ctx, id); err != nil {
+		return halo.Identity{}, err
+	}
+	return id, nil
 }
