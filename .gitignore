@@ -1,6 +1,7 @@
 docs/
 .env
 .claude
+CLAUDE.md
 
 tmp/
 go.work
