@@ -22,15 +22,15 @@ type Manager struct {
 	cfg    Config
 }
 
-func New(store Store, hash hasher.Hasher, opts ...Option) *Manager {
+func New(store Store, opts ...Option) *Manager {
 	c := applyOptions(opts)
 
-	if hash == nil {
-		hash = hasher.Default()
+	if c.Hasher == nil {
+		c.Hasher = hasher.Default()
 	}
 
 	return &Manager{
-		hasher: hash,
+		hasher: c.Hasher,
 		store:  store,
 		cfg:    c,
 	}
