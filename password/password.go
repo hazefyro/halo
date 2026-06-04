@@ -86,3 +86,25 @@ func (m *Manager) Login(ctx context.Context, email, password string) (halo.Ident
 
 	return identity, nil
 }
+
+func (m *Manager) ChangePassword(ctx context.Context, email, current, next string) error {
+	identity, err := m.store.GetIdentityByEmail(ctx, email, "password")
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if err := m.hasher.Verify(current, identity.PasswordHash); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if next == "" {
+		return ErrPasswordRequired
+	}
+
+	hashed, err := m.hasher.Hash(next)
+	if err != nil {
+		return fmt.Errorf("password: failed to hash password: %w", err)
+	}
+
+	return m.store.UpdatePassword(ctx, email, hashed)
+}
